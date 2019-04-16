@@ -1,0 +1,92 @@
+{
+  "name": "ilp-settlement-xrp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/src/index.js",
+  "types": "build/src/index.d.ts",
+  "files": [
+    "build/src/**/*.json",
+    "build/src/**/*.js",
+    "build/src/**/*.js.map",
+    "build/src/**/*.d.ts",
+    "build/doc"
+  ],
+  "scripts": {
+    "start": "npm run build && node ./build/src/index.js",
+    "clean": "rm -Rf .nyc_output && rm -Rf coverage && rm -Rf build ",
+    "build": "tsc",
+    "lint": "tslint --project .",
+    "lintFix": "tslint --project . --fix",
+    "test": "nyc mocha --require ts-node/register --ui mocha-typescript --require source-map-support/register 'test/**/*.test.ts'",
+    "doc": "typedoc --options typedoc.js src",
+    "codecov": "codecov",
+    "preversion": "npm run lint && npm test",
+    "prepublishOnly": "rm -Rf ./build/test && npm run lint && npm test && npm run doc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/interledgerjs/ilp-settlement-xrp.git"
+  },
+  "author": "Interledger Team <info@interledger.org>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "debug": "^4.1.1",
+    "ioredis": "^4.9.0",
+    "koa": "^2.7.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-router": "^7.4.0",
+    "ripple-lib": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/chai-as-promised": "^7.1.0",
+    "@types/debug": "^4.1.3",
+    "@types/ioredis": "^4.0.10",
+    "@types/koa": "^2.0.48",
+    "@types/koa-bodyparser": "^4.2.2",
+    "@types/koa-router": "^7.0.40",
+    "@types/mocha": "^5.2.5",
+    "@types/mock-require": "^2.0.0",
+    "@types/sinon": "^5.0.7",
+    "axios": "^0.18.0",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "codecov": "^3.1.0",
+    "ioredis-mock": "^4.9.0",
+    "mocha": "^5.2.0",
+    "mocha-typescript": "^1.1.17",
+    "mock-require": "^3.0.3",
+    "nyc": "^13.1.0",
+    "sinon": "^7.1.1",
+    "source-map-support": "^0.5.10",
+    "ts-node": "^8.0.2",
+    "tslint": "^5.12.1",
+    "tslint-config-standard": "^8.0.1",
+    "typedoc": "^0.14.2",
+    "typescript": "^3.3.3"
+  },
+  "nyc": {
+    "check-coverage": false,
+    "lines": 80,
+    "statements": 80,
+    "functions": 80,
+    "branches": 80,
+    "include": [
+      "src/**/*"
+    ],
+    "exclude": [
+      "test"
+    ],
+    "reporter": [
+      "lcov",
+      "text-summary"
+    ],
+    "extension": [
+      ".ts",
+      ".tsx"
+    ],
+    "sourceMap": true,
+    "instrument": true,
+    "all": true
+  }
+}

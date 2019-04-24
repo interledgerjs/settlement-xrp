@@ -150,6 +150,7 @@ export class XrpSettlementEngine {
     if (!settle) return
 
     const settleAmount = bnSettleTo - balance
+    debug(`settlement required for ${settleAmount} to account: ${account.id} (XRP address: ${account.ledgerAddress})`)
     const ledgerSettleAmount = normalizeAsset(account.scale, this.assetScale, settleAmount)
     await this.settle(account, ledgerSettleAmount.toString())
   }
@@ -158,6 +159,7 @@ export class XrpSettlementEngine {
   async settle(account: Account, drops: string) {
     debug(`Attempting to send ${drops} XRP drops to account: ${account.id} (XRP address: ${account.ledgerAddress})`)
     try {
+      console.log(drops, typeof drops)
       const payment = await this.rippleClient.preparePayment(this.address, {
         source: {
           address: this.address,
@@ -219,7 +221,7 @@ export class XrpSettlementEngine {
       if(accountJSON) {
         const account = JSON.parse(accountJSON)
         await this.updateBalance(account, drops.toString())
-        // debug(`Credited account: ${account} for incoming settlement, balance is now: ${newBalance}`)
+        debug(`Credited account: ${account} for incoming settlement, balance is now: ${drops.toString()}`)
       }
     } catch (err) {
       if (err.message.includes('No account associated')) {
@@ -243,7 +245,7 @@ export class XrpSettlementEngine {
     
     const url = `${this.connectorUrl}\\${account}\\updateBalance`
     return axios.post(url, {
-      amount: amount
+      amount: amount.toString()
     })
   }
 }

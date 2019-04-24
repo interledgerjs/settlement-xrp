@@ -21,6 +21,9 @@ Note (Balance is an overlay of a peer receivable and peer payable account in acc
 * Settlement Threshold: Threshold with which to do the settlement
 
 ## Flows to consider
+We are Alice and counterparty is Bob and thus the balances and settings are from our perspective
+
+### Mutual credit extended between both parties
 
 #### Account Related
 * Startup
@@ -35,7 +38,6 @@ Note (Balance is an overlay of a peer receivable and peer payable account in acc
     * incoming transaction needs to update connector(s) balance
 * Deal with incoming thresholds
     * Settle if threshold to settle is passed
-
 
 ### TODO
 * [ ] Add peer.settle handler

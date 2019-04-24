@@ -5,9 +5,9 @@ import { Redis } from 'ioredis'
 import { RippleAPI } from 'ripple-lib'
 import { Server } from 'net';
 import { createOrUpdate as createOrUpdateAccount, show as showAccount, destroy as destroyAccount } from './controllers/accountsController'
-import { create as createThreshold } from './controllers/accountsThresholdController';
+import { create as createThreshold } from './controllers/accountsBalanceController';
 import axios from 'axios'
-
+import { BigNumber } from 'bignumber.js'
 import Debug from 'debug'
 import { normalizeAsset } from './utils/normalizeAsset';
 const debug = Debug('xrp-settlement-engine')
@@ -15,17 +15,8 @@ const debug = Debug('xrp-settlement-engine')
 const DEFAULT_SETTLEMENT_ENGINE_PREFIX = 'xrp'
 const DEFAULT_MIN_DROPS_TO_SETTLE = 10000
 
-const THRESHOLD_PERCENTAGES = [0,10,20,30,40,50,60,70,80,90,100]
-
-export type Threshold = {
-  name: string,
-  value: number
-}
-
-export type ThresholdAlert = {
-  threshold: string,
-  currentBalance: number,
-  previousBalance: number
+export type BalanceUpdate = {
+  balance: number,
   timestamp: number
 }
 
@@ -33,9 +24,10 @@ export type Account = {
   id: string,
   ledgerAddress: string,
   scale: number,
-  minimumBalance?: number,
-  maximumBalance: number,
-  settlementThreshold?: number
+  minimumBalance?: string,
+  maximumBalance: string,
+  settlementThreshold?: string
+  settleTo?: string //Not sure this is needed
 }
 
 /**
@@ -120,7 +112,7 @@ export class XrpSettlementEngine {
     this.router.get('/accounts/:id', (ctx) => showAccount(ctx, this.redis))
     this.router.delete('/accounts/:id', (ctx) => destroyAccount(ctx, this.redis))
 
-    this.router.post('/accounts/:id/alerts', 
+    this.router.post('/accounts/:id/balance', 
     async (ctx, next) => {
       //Get the account and bind to ctx
       const account =  await this.redis.get(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
@@ -131,7 +123,7 @@ export class XrpSettlementEngine {
       }
       await next()
     },
-    (ctx) => createThreshold(ctx, this.redis, this.handleThresholdAlert.bind(this)))
+    (ctx) => createThreshold(ctx, this.redis, this.handleBalanceUpdate.bind(this)))
   }
 
   private bindStoragePrefix() {
@@ -148,22 +140,22 @@ export class XrpSettlementEngine {
     })
   }
 
-  async  handleThresholdAlert(account: Account, alert: ThresholdAlert) {
-    //Need a way to determine settlement threshold alogrithmically
-    const deltaBalance = alert.currentBalance - alert.previousBalance
+  async  handleBalanceUpdate(account: Account, update: BalanceUpdate) {
+    const { settlementThreshold, settleTo = '0' } = account
+    const bnSettleThreshold = settlementThreshold ? BigInt(settlementThreshold) : undefined
+    const bnSettleTo = BigInt(settleTo)
+    const balance = BigInt(update.balance)
 
-    // Only trigger settlement for negative trending alerts
-    // Currently only settles to zero
-    if(deltaBalance < 0 && Math.abs(alert.currentBalance) >= this.minDropsToSettle) {
-      const amountToSettle = Math.abs(alert.currentBalance)
-      await this.settle(account, amountToSettle)
-    } else {
-      debug('No settlement required for threshold alert')
-    }
+    const settle = bnSettleThreshold && bnSettleThreshold > balance
+    if (!settle) return
+
+    const settleAmount = bnSettleTo - balance
+    const ledgerSettleAmount = normalizeAsset(account.scale, this.assetScale, settleAmount)
+    await this.settle(account, ledgerSettleAmount.toString())
   }
 
   /** Should be triggered based on  */
-  async settle(account: Account, drops: number) {
+  async settle(account: Account, drops: string) {
     debug(`Attempting to send ${drops} XRP drops to account: ${account.id} (XRP address: ${account.ledgerAddress})`)
     try {
       const payment = await this.rippleClient.preparePayment(this.address, {
@@ -208,9 +200,9 @@ export class XrpSettlementEngine {
     let drops
     try {
       if (tx.meta.delivered_amount) {
-        drops = parseInt(tx.meta.delivered_amount, 10)
+        drops = new BigNumber(tx.meta.delivered_amount)
       } else {
-        drops = parseInt(tx.transaction.Amount, 10)
+        drops = new BigNumber(tx.transaction.Amount)
       }
     } catch (err) {
       console.error('Error parsing amount received from transaction: ', tx)
@@ -226,7 +218,7 @@ export class XrpSettlementEngine {
       const accountJSON = await this.redis.get(`${DEFAULT_SETTLEMENT_ENGINE_PREFIX}:accounts:${accountId}`)
       if(accountJSON) {
         const account = JSON.parse(accountJSON)
-        await this.updateBalance(account, drops)
+        await this.updateBalance(account, drops.toString())
         // debug(`Credited account: ${account} for incoming settlement, balance is now: ${newBalance}`)
       }
     } catch (err) {
@@ -244,27 +236,14 @@ export class XrpSettlementEngine {
    * NOTE! This needs to send an update in the normalized assetScale for the account
    * TODO: Possible retry logic required
    */
-  async updateBalance(account: Account, drops: number) {
+  async updateBalance(account: Account, drops: string) {
     
     //Normalize the drops of the ledger into the accounts scale
-    const amount = normalizeAsset(this.assetScale, account.scale, drops)
+    const amount = normalizeAsset(this.assetScale, account.scale, BigInt(drops))
     
     const url = `${this.connectorUrl}\\${account}\\updateBalance`
     return axios.post(url, {
       amount: amount
     })
-  }
-
-  /**
-   * 
-   * @param account Account to register the threshold alerts on
-   */
-  async registerThresholdOnConnector(account: Account) {
-    const url = `${this.connectorUrl}\\${account}\\thresholds`
-
-    for (let i in THRESHOLD_PERCENTAGES) {
-      const percentage = THRESHOLD_PERCENTAGES[i]
-      const operatingRange = []
-    }
   }
 }

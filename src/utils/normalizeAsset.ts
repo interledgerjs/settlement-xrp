@@ -1,5 +1,5 @@
+export function normalizeAsset(inputScale: number, outputScale: number, value: bigint): bigint {
+    const scaleDifference = BigInt(outputScale) - BigInt(inputScale)
 
-export function normalizeAsset(inputScale: number, outputScale: number, value: number): number {
-    const scaleDifference = outputScale - inputScale
-    return Math.ceil(value*Math.pow(10,scaleDifference))
+    return scaleDifference > 0 ? value*(10n**scaleDifference) : value/(10n**(-1n*scaleDifference))
 }

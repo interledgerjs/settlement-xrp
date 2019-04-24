@@ -8,17 +8,18 @@ import { RippleAPI } from 'ripple-lib'
 const assert = Object.assign(Chai.assert, sinon.assert)
 const Redis = require('ioredis-mock');
 
-describe('Thresholds', function () {
+describe('Balance', function () {
   let engine: XrpSettlementEngine
   let redis: RedisIo.Redis
   let rippleApi: RippleAPI
 
-  let dummyAccount = {
+  let dummyAccount: Account = {
     id: 'testId',
     ledgerAddress: 'rnp.address',
     scale: 6,
-    minimumBalance: 0,
-    maximumBalance: 100
+    minimumBalance: '0',
+    maximumBalance: '100',
+    settlementThreshold: '50'
   }
 
   beforeEach(async () => {
@@ -46,43 +47,37 @@ describe('Thresholds', function () {
    await engine.shutdown()
   })
 
-  it('can handle an incoming threshold alert', async () => {
-    const threshold = {
-        threshold: 'test',
-        timestamp: Date.now(),
-        previousBalance: 0,
-        currentBalance: -100
+  it('can handle an incoming balance update', async () => {
+    const balanceUpdate = {
+      balance: 100,
+      timestamp: Date.now()
     }
-    const response = await axios.post('http://localhost:3000/accounts/testId/alerts', threshold).catch(error => {throw new Error(error.message)})
+    const response = await axios.post('http://localhost:3000/accounts/testId/balance', balanceUpdate).catch(error => {throw new Error(error.message)})
 
     assert.strictEqual(response.status, 200)
   })
 
-  it('Threshold alert that crosses settlement threshold triggers a settlement', async () => {
-    const threshold = {
-        threshold: 'test',
-        timestamp: Date.now(),
-        previousBalance: 0,
-        currentBalance: -1000000
+  it('Balance update that crosses threshold triggers a settlement', async () => {
+    const balanceUpdate = {
+      balance: '49',
+      timestamp: Date.now()
     }
-    const stub = sinon.stub(engine, 'settle').callsFake(async (account: Account, drops: number) => {
+    const stub = sinon.stub(engine, 'settle').callsFake(async (account: Account, drops: string) => {
       return Promise.resolve()
     })
-    const response = await axios.post('http://localhost:3000/accounts/testId/alerts', threshold).catch(error => {throw new Error(error.message)})
+    const response = await axios.post('http://localhost:3000/accounts/testId/balance', balanceUpdate).catch(error => {throw new Error(error.message)})
 
     sinon.assert.calledOnce(stub)
     assert.strictEqual(response.status, 200)
   })
 
   it('Threshold alert that does not cross settlement threshold does not trigger a settlement', async () => {
-    const threshold = {
-        threshold: 'test',
-        timestamp: Date.now(),
-        previousBalance: 0,
-        currentBalance: 20
+    const balanceUpdate = {
+      balance: '51',
+      timestamp: Date.now()
     }
     const stub = sinon.stub(engine, 'settle')
-    const response = await axios.post('http://localhost:3000/accounts/testId/alerts', threshold).catch(error => {throw new Error(error.message)})
+    const response = await axios.post('http://localhost:3000/accounts/testId/balance', balanceUpdate).catch(error => {throw new Error(error.message)})
 
     sinon.assert.notCalled(stub)
     assert.strictEqual(response.status, 200)
@@ -96,14 +91,10 @@ describe('Thresholds', function () {
         currentBalance: 20
     }
 
-    const response = await axios.post('http://localhost:3000/accounts/noaccountId/alerts', threshold).catch(error => {
+    const response = await axios.post('http://localhost:3000/accounts/noaccountId/balance', threshold).catch(error => {
       return error.response
     })
 
     assert.strictEqual(response.status, 404)
-  })
-
-  it('register thresholds', async () => {
-    engine.registerThresholdOnConnector(dummyAccount)
   })
 })

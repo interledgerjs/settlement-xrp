@@ -30,6 +30,7 @@
   "author": "Interledger Team <info@interledger.org>",
   "license": "Apache-2.0",
   "dependencies": {
+    "bignumber.js": "^8.1.1",
     "debug": "^4.1.1",
     "ioredis": "^4.9.0",
     "koa": "^2.7.0",

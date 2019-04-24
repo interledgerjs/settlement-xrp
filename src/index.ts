@@ -14,6 +14,8 @@ const debug = Debug('xrp-settlement-engine')
 
 const DEFAULT_SETTLEMENT_ENGINE_PREFIX = 'xrp'
 const DEFAULT_MIN_DROPS_TO_SETTLE = 10000
+const POLL_BALANCE = process.env.POLL_BALANCE ? Boolean(process.env.POLL_BALANCE) : false
+const POLL_INTERVAL = process.env.POLL_INTERVAL ? Number(process.env.POLL_INTERVAL) : 500
 
 export type BalanceUpdate = {
   balance: number,
@@ -98,6 +100,8 @@ export class XrpSettlementEngine {
     this.server = await this.app.listen(this.port)
     await this.rippleClient.connect()
     await this.subscribeToTransactions()
+    if(POLL_BALANCE)
+      setInterval(this.pollAccountBalances.bind(this), POLL_INTERVAL)
   }
 
   public async shutdown() {
@@ -105,6 +109,31 @@ export class XrpSettlementEngine {
       this.server.close(),
       this.rippleClient.disconnect()
     ])
+  }
+
+  /**
+   * Experimental way of getting the balances
+   */
+  private async pollAccountBalances() {
+    const accounts = await this.redis.keys(`${this.enginePrefix}:accounts:*`).then(keys => {
+      return Promise.all(keys.map(async key => {
+        return this.redis.get(key)
+      }))
+    }).catch(error => {
+      debug(`error whilst getting accounts for polling`)
+    })
+
+    if(accounts) {
+      accounts.forEach(async accountString => {
+        if(accountString) {
+          const account = JSON.parse(accountString)
+          axios.get(`${this.connectorUrl}/accounts/${account.id}/balance`)
+            .then(response => response.data)
+            .then(data => this.handleBalanceUpdate(account, data))
+            .catch(error => debug('error getting account balance'))
+        }
+      })
+    }
   }
 
   private setupRoutes() {

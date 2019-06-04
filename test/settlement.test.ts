@@ -29,7 +29,7 @@ describe('Accounts Settlement', function () {
     "result": {
       "Account": dummyAccount.xrpAddress,
       "Amount": "1000000",
-      "Destination": 'string',
+      "Destination": 'r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV',
       "Fee": "10",
       "Flags": 2147483648,
       "Sequence": 2,

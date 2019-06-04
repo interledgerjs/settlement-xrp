@@ -12,7 +12,7 @@
     "build/doc"
   ],
   "scripts": {
-    "start": "npm run build && node ./build/src/index.js",
+    "start": "npm run build && node ./build/src/run.js",
     "clean": "rm -Rf .nyc_output && rm -Rf coverage && rm -Rf build ",
     "build": "tsc",
     "lint": "tslint --project .",
@@ -38,7 +38,8 @@
     "koa-bodyparser": "^4.2.1",
     "koa-router": "^7.4.0",
     "raw-body": "^2.4.0",
-    "ripple-lib": "^1.2.1"
+    "ripple-lib": "^1.2.1",
+    "winston": "^3.2.1"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",
@@ -59,6 +60,7 @@
     "mocha": "^5.2.0",
     "mocha-typescript": "^1.1.17",
     "mock-require": "^3.0.3",
+    "mockttp": "^0.15.0",
     "nyc": "^13.1.0",
     "sinon": "^7.1.1",
     "source-map-support": "^0.5.10",

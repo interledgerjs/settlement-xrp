@@ -5,6 +5,7 @@ import { XrpSettlementEngine } from '../src/index'
 import axios from 'axios'
 import * as RedisIo from 'ioredis';
 import { RippleAPI } from 'ripple-lib'
+import { Mockttp, getLocal } from 'mockttp';
 const assert = Object.assign(Chai.assert, sinon.assert)
 const Redis = require('ioredis-mock');
 
@@ -12,6 +13,7 @@ describe('Accounts', function () {
   let engine: XrpSettlementEngine
   let redis: RedisIo.Redis
   let rippleApi: RippleAPI
+  let mockttp: Mockttp
 
   let dummyAccount = {
     id: 'testId'
@@ -20,6 +22,8 @@ describe('Accounts', function () {
   beforeEach(async () => {
     redis = new Redis()
     rippleApi = new RippleAPI()
+    mockttp = getLocal()
+    await mockttp.start(7777)
 
     sinon.stub(rippleApi, 'connect').callsFake(() => Promise.resolve())
     sinon.stub(rippleApi, 'disconnect').callsFake(() => Promise.resolve())
@@ -37,7 +41,8 @@ describe('Accounts', function () {
   })
 
   afterEach(async () => {
-   await engine.shutdown()
+    await mockttp.stop()
+    await engine.shutdown()
   })
 
   it('can add an account', async () => {

@@ -1,12 +1,16 @@
 import { Context } from "koa";
 import { Redis } from "ioredis";
+import { normalizeAsset } from "../utils/normalizeAsset";
 
 
 /** Create account if it does not exists or update if it does exist*/
-export async function create(ctx: Context, redis: Redis) {
-    // let body = ctx.request.body
+export async function create(ctx: Context) {
+    const accountJson = await ctx.redis.get(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
+    const account = JSON.parse(accountJson)
 
-    // await ctx.redis.set(`${ctx.settlement_prefix}:accounts:${body.id}`, JSON.stringify(body))
+    const body = ctx.request.body
+    const amount = normalizeAsset(body.scale, 6, BigInt(body.amount))
+    await ctx.settleAccount(account, amount.toString())
 
     ctx.status = 200
 }

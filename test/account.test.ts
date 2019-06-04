@@ -14,12 +14,7 @@ describe('Accounts', function () {
   let rippleApi: RippleAPI
 
   let dummyAccount = {
-    id: 'testId',
-    ledgerAddress: 'rnp.address',
-    scale: 9,
-    minimumBalance: -100,
-    maximumBalance: 100,
-    settlementThreshold: -50
+    id: 'testId'
   }
 
   beforeEach(async () => {
@@ -46,7 +41,7 @@ describe('Accounts', function () {
   })
 
   it('can add an account', async () => {
-    const response = await axios.put('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
+    const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
     
     assert.strictEqual(response.status, 200)
     const account = await redis.get('xrp:accounts:testId')

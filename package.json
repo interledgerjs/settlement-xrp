@@ -17,7 +17,8 @@
     "build": "tsc",
     "lint": "tslint --project .",
     "lintFix": "tslint --project . --fix",
-    "test": "nyc mocha --require ts-node/register --ui mocha-typescript --require source-map-support/register 'test/**/*.test.ts'",
+    "test": "TS_NODE_TRANSPILE_ONLY=true mocha --require ts-node/register --ui mocha-typescript --require source-map-support/register 'test/**/*.test.ts'",
+    "test:coverage": "nyc mocha --require ts-node/register --ui mocha-typescript --require source-map-support/register 'test/**/*.test.ts'",
     "doc": "typedoc --options typedoc.js src",
     "codecov": "codecov",
     "preversion": "npm run lint && npm test",
@@ -36,6 +37,7 @@
     "koa": "^2.7.0",
     "koa-bodyparser": "^4.2.1",
     "koa-router": "^7.4.0",
+    "raw-body": "^2.4.0",
     "ripple-lib": "^1.2.1"
   },
   "devDependencies": {

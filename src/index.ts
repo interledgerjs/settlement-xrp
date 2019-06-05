@@ -8,7 +8,6 @@ import { create as createAccount, show as showAccount, destroy as destroyAccount
 import axios from 'axios'
 import { BigNumber } from 'bignumber.js'
 import Debug from 'debug'
-import { normalizeAsset } from './utils/normalizeAsset'
 import { create as createAccountMessage } from './controllers/accountsMessagesController'
 import { create as createAccountSettlement } from './controllers/accountsSettlementController'
 const debug = Debug('xrp-settlement-engine')
@@ -16,13 +15,6 @@ import { Account } from './models/account'
 
 const DEFAULT_SETTLEMENT_ENGINE_PREFIX = 'xrp'
 const DEFAULT_MIN_DROPS_TO_SETTLE = 10000
-const POLL_BALANCE = process.env.POLL_BALANCE ? Boolean(process.env.POLL_BALANCE) : false
-const POLL_INTERVAL = process.env.POLL_INTERVAL ? Number(process.env.POLL_INTERVAL) : 500
-
-export type BalanceUpdate = {
-  balance: number,
-  timestamp: number
-}
 
 /**
  * 
@@ -183,8 +175,12 @@ export class XrpSettlementEngine {
       }
     }
     await axios.post(url, Buffer.from(JSON.stringify(message)), {
-      timeout: 10000
+      timeout: 10000,
+      headers: {
+        'Content-type': 'application/octet-stream'
+      }
     }).then(response => {
+      console.log('Config successful for account:\t', accountId)
       //TODO add logic to set the account to ready state
     }).catch(error => {
       console.log('Error attempting to send account config, attemping again in 5000ms')
@@ -214,9 +210,8 @@ export class XrpSettlementEngine {
   /**
    * Handle incoming transaction from the ledger
    */
-  private async handleTransaction(transaction: any) {
-    const tx = transaction.result
-    if (!tx.validated || tx.meta.TransactionResult !== 'tesSUCCESS' || tx.TransactionType !== 'Payment' || tx.Destination !== this.address) {
+  private async handleTransaction(tx: any) {
+    if (!tx.validated || tx.meta.TransactionResult !== 'tesSUCCESS' || tx.transaction.TransactionType !== 'Payment' || tx.transaction.Destination !== this.address) {
       return
     }
     console.log('validated')
@@ -227,14 +222,14 @@ export class XrpSettlementEngine {
       if (tx.meta.delivered_amount) {
         drops = new BigNumber(tx.meta.delivered_amount)
       } else {
-        drops = new BigNumber(tx.Amount)
+        drops = new BigNumber(tx.transaction.Amount)
       }
     } catch (err) {
       console.error('Error parsing amount received from transaction: ', tx)
       return
     }
 
-    const fromAddress = tx.Account
+    const fromAddress = tx.transaction.Account
     console.log(`Got incoming XRP payment for ${drops} drops from XRP address: ${fromAddress}`)
 
     try {

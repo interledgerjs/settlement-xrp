@@ -23,85 +23,42 @@ describe('Accounts Settlement', function () {
   }
 
   let transaction = {
-    "id": 6,
-    "status": "success",
-    "type": "response",
-    "result": {
-      "Account": dummyAccount.xrpAddress,
-      "Amount": "1000000",
-      "Destination": 'r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV',
-      "Fee": "10",
-      "Flags": 2147483648,
-      "Sequence": 2,
-      "SigningPubKey": "03AB40A0490F9B7ED8DF29D246BF2D6269820A0EE7742ACDD457BEA7C7D0931EDB",
-      "TransactionType": "Payment",
-      "TxnSignature": "3045022100D64A32A506B86E880480CCB846EFA3F9665C9B11FDCA35D7124F53C486CC1D0402206EC8663308D91C928D1FDA498C3A2F8DD105211B9D90F4ECFD75172BAE733340",
-      "date": 455224610,
-      "hash": "33EA42FC7A06F062A7B843AF4DC7C0AB00D6644DFDF4C5D354A87C035813D321",
-      "inLedger": 7013674,
-      "ledger_index": 7013674,
-      "meta": {
-        "AffectedNodes": [
-          {
-            "ModifiedNode": {
-              "FinalFields": {
-                "Account": "rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn",
-                "Balance": "99999980",
-                "Flags": 0,
-                "OwnerCount": 0,
-                "Sequence": 3
-              },
-              "LedgerEntryType": "AccountRoot",
-              "LedgerIndex": "13F1A95D7AAB7108D5CE7EEAF504B2894B8C674E6D68499076441C4837282BF8",
-              "PreviousFields": {
-                "Balance": "99999990",
-                "Sequence": 2
-              },
-              "PreviousTxnID": "7BF105CFE4EFE78ADB63FE4E03A851440551FE189FD4B51CAAD9279C9F534F0E",
-              "PreviousTxnLgrSeq": 6979192
-            }
-          },
-          {
-            "ModifiedNode": {
-              "FinalFields": {
-                "Balance": {
-                  "currency": "USD",
-                  "issuer": "rrrrrrrrrrrrrrrrrrrrBZbvji",
-                  "value": "2"
-                },
-                "Flags": 65536,
-                "HighLimit": {
-                  "currency": "USD",
-                  "issuer": "rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn",
-                  "value": "0"
-                },
-                "HighNode": "0000000000000000",
-                "LowLimit": {
-                  "currency": "USD",
-                  "issuer": "ra5nK24KXen9AHvsdFTKHSANinZseWnPcX",
-                  "value": "100"
-                },
-                "LowNode": "0000000000000000"
-              },
-              "LedgerEntryType": "RippleState",
-              "LedgerIndex": "96D2F43BA7AE7193EC59E5E7DDB26A9D786AB1F7C580E030E7D2FF5233DA01E9",
-              "PreviousFields": {
-                "Balance": {
-                  "currency": "USD",
-                  "issuer": "rrrrrrrrrrrrrrrrrrrrBZbvji",
-                  "value": "1"
-                }
-              },
-              "PreviousTxnID": "7BF105CFE4EFE78ADB63FE4E03A851440551FE189FD4B51CAAD9279C9F534F0E",
-              "PreviousTxnLgrSeq": 6979192
-            }
-          }
-        ],
-        "TransactionIndex": 0,
-        "TransactionResult": "tesSUCCESS"
-      },
-      "validated": true
-    }
+    engine_result: 'tesSUCCESS',
+    engine_result_code: 0,
+    engine_result_message:
+      'The transaction was applied. Only final in a validated ledger.',
+    ledger_hash:
+      '22B91B33054AFC5E56248CEC4C094990C771BEF694F3BC73A582B3BE7D6B3A87',
+    ledger_index: 19969015,
+    meta:
+    {
+      AffectedNodes: [[Object], [Object]],
+      TransactionIndex: 1,
+      TransactionResult: 'tesSUCCESS',
+      delivered_amount: '1000000'
+    },
+    status: 'closed',
+    transaction:
+    {
+      Account: dummyAccount.xrpAddress,
+      Amount: '1000000',
+      Destination: 'r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV',
+      Fee: '12',
+      Flags: 2147483648,
+      LastLedgerSequence: 19969017,
+      Memos: [[Object]],
+      Sequence: 6,
+      SigningPubKey:
+        '03D9C20FF1ACF714D2E4CBD05C6FDC74B43BAD4FBED2C75B8E4EC3C225510D20BC',
+      TransactionType: 'Payment',
+      TxnSignature:
+        '3045022100DEAD4352BE7F2D3A5C7E690EEB51858C4BBDBE3E4DA453D1807500E48DB3C790022079AFFE756E4EDEFB9D033F8FBC8B4D078AD9552FD5F8F807861F39B32A1CCFEC',
+      date: 613056822,
+      hash:
+        '57C3FB183A2A5602D922288FD6F372188E2584B6740640EED664B4B1C1918B2B'
+    },
+    type: 'transaction',
+    validated: true
   }
 
   beforeEach(async () => {

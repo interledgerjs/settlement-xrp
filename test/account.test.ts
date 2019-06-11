@@ -22,8 +22,6 @@ describe('Accounts', function () {
   beforeEach(async () => {
     redis = new Redis()
     rippleApi = new RippleAPI()
-    mockttp = getLocal()
-    await mockttp.start(7777)
 
     sinon.stub(rippleApi, 'connect').callsFake(() => Promise.resolve())
     sinon.stub(rippleApi, 'disconnect').callsFake(() => Promise.resolve())
@@ -37,20 +35,17 @@ describe('Accounts', function () {
       rippledClient: rippleApi,
       connectorUrl: 'http://localhost:7777'
     })
+    sinon.stub(engine.app.context, 'configAccount').callsFake(() => Promise.resolve())
     await engine.start()
-    const mockendpoint = await mockttp.post(`/accounts/${dummyAccount.id}/messages`).thenReply(200, Buffer.from(''))
   })
 
   afterEach(async () => {
-    await mockttp.stop()
     await engine.shutdown()
   })
 
   it('can add an account', async () => {
-
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
 
-    await new Promise(resolve => setTimeout(resolve, 20))
     assert.strictEqual(response.status, 200)
     const account = await redis.get('xrp:accounts:testId')
     if(account) {
@@ -68,7 +63,6 @@ describe('Accounts', function () {
     redis.set(`xrp:accounts:${existingAccount.id}`, JSON.stringify(existingAccount))
 
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
-    await new Promise(resolve => setTimeout(resolve, 20))
 
     assert.strictEqual(response.status, 200)
     const account = await redis.get('xrp:accounts:testId')

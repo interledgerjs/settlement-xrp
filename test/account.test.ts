@@ -35,9 +35,10 @@ describe('Accounts', function () {
       assetScale: 6,
       redis,
       rippledClient: rippleApi,
-      connectorUrl: 'http://localhost:3001'
+      connectorUrl: 'http://localhost:7777'
     })
     await engine.start()
+    const mockendpoint = await mockttp.post(`/accounts/${dummyAccount.id}/messages`).thenReply(200, Buffer.from(''))
   })
 
   afterEach(async () => {
@@ -46,12 +47,33 @@ describe('Accounts', function () {
   })
 
   it('can add an account', async () => {
+
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
-    
+
+    await new Promise(resolve => setTimeout(resolve, 20))
     assert.strictEqual(response.status, 200)
     const account = await redis.get('xrp:accounts:testId')
     if(account) {
       assert.deepEqual(JSON.parse(account), dummyAccount)
+    } else {
+      throw new Error('account was not created in datastore')
+    }
+  })
+
+  it('adding an account that already exists does nothing', async () => {
+    const existingAccount = {
+      ...dummyAccount,
+      xrpAddress: 'testXrp'
+    }
+    redis.set(`xrp:accounts:${existingAccount.id}`, JSON.stringify(existingAccount))
+
+    const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    assert.strictEqual(response.status, 200)
+    const account = await redis.get('xrp:accounts:testId')
+    if(account) {
+      assert.deepEqual(JSON.parse(account), existingAccount)
     } else {
       throw new Error('account was not created in datastore')
     }

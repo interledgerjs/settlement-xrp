@@ -10,7 +10,11 @@ export async function create(ctx: Context, redis: Redis) {
         id: body.id
     }
 
-    await ctx.redis.set(`${ctx.settlement_prefix}:accounts:${account.id}`, JSON.stringify(account))
+    //Check if account exists first
+    const existingAccount = await ctx.redis.get(`${ctx.settlement_prefix}:accounts:${account.id}`)
+    if(!existingAccount) {
+        await ctx.redis.set(`${ctx.settlement_prefix}:accounts:${account.id}`, JSON.stringify(account))
+    }
     ctx.configAccount(account.id)
 
     ctx.status = 200

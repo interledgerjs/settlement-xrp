@@ -183,7 +183,7 @@ export class XrpSettlementEngine {
       console.log('Config successful for account:\t', accountId)
       //TODO add logic to set the account to ready state
     }).catch(error => {
-      console.log('Error attempting to send account config, attemping again in 5000ms')
+      console.log('Error attempting to send account config, attemping again in 5000ms', error)
       //need to add retry logic and store the underlaying setTimeout to be able to cancel it
       const retryTimeout = setTimeout(() => this.configAccount(accountId), 5000)
 

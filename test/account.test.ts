@@ -79,7 +79,7 @@ describe('Accounts', function () {
   })
 
   it('can remove an account', async () => {
-    redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
+    await redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
 
     const response = await axios.delete(`http://localhost:3000/accounts/${dummyAccount.id}`).catch(error => {throw new Error(error.message)})
 

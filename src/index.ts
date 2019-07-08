@@ -12,6 +12,7 @@ import { create as createAccountMessage } from './controllers/accountsMessagesCo
 import { create as createAccountSettlement } from './controllers/accountsSettlementController'
 const debug = Debug('xrp-settlement-engine')
 import { Account } from './models/account'
+import { v4 as uuidv4 } from 'uuid'
 
 const DEFAULT_SETTLEMENT_ENGINE_PREFIX = 'xrp'
 const DEFAULT_MIN_DROPS_TO_SETTLE = 10000
@@ -91,6 +92,7 @@ export class XrpSettlementEngine {
   }
 
   public async start () {
+    console.log('STARTING TO LISTEN ON', this.port)
     this.server = this.app.listen(this.port)
     await this.rippleClient.connect()
     await this.subscribeToTransactions()
@@ -167,7 +169,8 @@ export class XrpSettlementEngine {
     return axios.post(url, Buffer.from(JSON.stringify(message)), {
       timeout: 10000,
       headers: {
-        'Content-type': 'application/octet-stream'
+        'Content-type': 'application/octet-stream',
+        'Idempotency-Key' : uuidv4()
       }
     }).then(response => response.data)
   }

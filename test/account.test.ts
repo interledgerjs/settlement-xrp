@@ -1,11 +1,11 @@
 import 'mocha'
 import * as sinon from 'sinon'
 import * as Chai from 'chai'
-import { XrpSettlementEngine } from '../src/index'
+import {XrpSettlementEngine} from '../src'
 import axios from 'axios'
-import * as RedisIo from 'ioredis';
-import { RippleAPI } from 'ripple-lib'
-import { Mockttp, getLocal } from 'mockttp';
+import * as RedisIo from 'ioredis'
+import {RippleAPI} from 'ripple-lib'
+
 const assert = Object.assign(Chai.assert, sinon.assert)
 const Redis = require('ioredis-mock');
 
@@ -13,8 +13,6 @@ describe('Accounts', function () {
   let engine: XrpSettlementEngine
   let redis: RedisIo.Redis
   let rippleApi: RippleAPI
-  let mockttp: Mockttp
-
   let dummyAccount = {
     id: 'testId'
   }
@@ -35,7 +33,6 @@ describe('Accounts', function () {
       rippledClient: rippleApi,
       connectorUrl: 'http://localhost:7777'
     })
-    sinon.stub(engine.app.context, 'configAccount').callsFake(() => Promise.resolve())
     await engine.start()
   })
 
@@ -57,10 +54,9 @@ describe('Accounts', function () {
 
   it('adding an account that already exists does nothing', async () => {
     const existingAccount = {
-      ...dummyAccount,
-      xrpAddress: 'testXrp'
+      ...dummyAccount
     }
-    redis.set(`xrp:accounts:${existingAccount.id}`, JSON.stringify(existingAccount))
+    await redis.set(`xrp:accounts:${existingAccount.id}`, JSON.stringify(existingAccount))
 
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
 
@@ -73,12 +69,8 @@ describe('Accounts', function () {
     }
   })
 
-  it('adding an account sends a post request to the connector to set thresholds', async () => {
-    //TODO:
-  })
-
   it('can get an account', async () => {
-    redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
+    await redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
 
     const response = await axios.get(`http://localhost:3000/accounts/${dummyAccount.id}`).catch(error => {throw new Error(error.message)})
     

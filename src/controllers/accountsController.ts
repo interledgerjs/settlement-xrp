@@ -2,7 +2,7 @@ import { Context } from 'koa'
 import { Redis } from 'ioredis'
 import { Account } from '../models/account'
 
-export async function create (ctx: Context, redis: Redis) {
+export async function create (ctx: Context) {
   let body = ctx.request.body
   let account: Account = {
     id: body.id
@@ -13,14 +13,13 @@ export async function create (ctx: Context, redis: Redis) {
   if (!existingAccount) {
     await ctx.redis.set(`${ctx.settlement_prefix}:accounts:${account.id}`, JSON.stringify(account))
   }
-  ctx.configAccount(account.id)
 
   ctx.status = 200
 }
 
 /** Get account by Id */
-export async function show (ctx: Context, redis: Redis) {
-  const account = await redis.get(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
+export async function show (ctx: Context) {
+  const account = await ctx.redis.get(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
   if (account) {
     ctx.body = JSON.parse(account)
     ctx.status = 200
@@ -30,8 +29,8 @@ export async function show (ctx: Context, redis: Redis) {
 }
 
 /** Delete account by Id */
-export async function destroy (ctx: Context, redis: Redis) {
-  await redis.del(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
+export async function destroy (ctx: Context) {
+  await ctx.redis.del(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
     // TODO Delete key from redis for ledger address
 
   ctx.status = 200

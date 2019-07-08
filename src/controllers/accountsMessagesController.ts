@@ -1,19 +1,18 @@
 import { Context } from 'koa'
-import { Redis } from 'ioredis'
-import { Account } from '../models/account'
 let getRawBody = require('raw-body')
+import { randomBytes } from 'crypto'
 
 export interface Message {
   type: string,
   data: any
 }
 
-export interface ConfigMessage {
-  xrpAddress: string
+export interface PaymentDetailsMessage {
+  xrpAddress: string,
+  destinationTag: number
 }
 
 export async function create (ctx: Context) {
-  let body = ctx.request.body
   const buffer = await getRawBody(ctx.req)
     .then((buffer: Buffer) => {
         return buffer
@@ -30,17 +29,23 @@ export async function create (ctx: Context) {
 async function handleMessage (message: Message, ctx: Context) {
   const accountID: string = ctx.params.id
   switch (message.type) {
-    case('config'):
-      const configMessage: ConfigMessage = {
-        xrpAddress: message.data.xrpAddress
+    case('paymentDetails'):
+      const destinationTag = await ctx.redis.get(`${ctx.settlement_prefix}:accountId:${accountID}:destinationTag`).then(async (tag: string) => {
+        if (tag) {
+          return tag
+        } else {
+          const destinationTag = randomBytes(4).readUInt32BE(0)
+          await ctx.redis.set(`${ctx.settlement_prefix}:destinationTag:${destinationTag}:accountId`, accountID)
+          await ctx.redis.set(`${ctx.settlement_prefix}:accountId:${accountID}:destinationTag`, destinationTag)
+          return destinationTag
+        }
+      })
+
+      const paymentDetails: PaymentDetailsMessage = {
+        xrpAddress: ctx.xrpAddress,
+        destinationTag: Number(destinationTag)
       }
-      const account: Account = {
-        id: accountID,
-        xrpAddress: configMessage.xrpAddress
-      }
-      await ctx.redis.set(`${ctx.settlement_prefix}:accounts:${accountID}`, JSON.stringify(account))
-      await ctx.redis.set(`${ctx.settlement_prefix}:xrpAddress:${configMessage.xrpAddress}:accountId`, account.id)
-      return Buffer.from('')
+      return Buffer.from(JSON.stringify(paymentDetails))
     default:
       throw new Error('Unknown message type')
   }

@@ -81,8 +81,8 @@ export class XrpSettlementEngine {
     // Add redis to context
     this.app.context.redis = this.redis
     this.app.context.settlement_prefix = DEFAULT_SETTLEMENT_ENGINE_PREFIX
-    this.app.context.configAccount = this.configAccount.bind(this)
     this.app.context.settleAccount = this.settleAccount.bind(this)
+    this.app.context.xrpAddress = this.address
 
     this.router = new Router()
     this.setupRoutes()
@@ -104,9 +104,9 @@ export class XrpSettlementEngine {
   }
 
   private setupRoutes () {
-    this.router.post('/accounts', (ctx) => createAccount(ctx, this.redis))
-    this.router.get('/accounts/:id', (ctx) => showAccount(ctx, this.redis))
-    this.router.delete('/accounts/:id', (ctx) => destroyAccount(ctx, this.redis))
+    this.router.post('/accounts', (ctx) => createAccount(ctx))
+    this.router.get('/accounts/:id', (ctx) => showAccount(ctx))
+    this.router.delete('/accounts/:id', (ctx) => destroyAccount(ctx))
 
     // Account Messages
     this.router.post('/accounts/:id/messages', this.findAccountMiddleware, createAccountMessage)
@@ -124,8 +124,12 @@ export class XrpSettlementEngine {
 
   /** Should be triggered based on  */
   async settleAccount (account: Account, drops: string) {
-    debug(`Attempting to send ${drops} XRP drops to account: ${account.id} (XRP address: ${account.xrpAddress})`)
+    debug(`Attempting to send ${drops} XRP drops to account: ${account.id}`)
     try {
+      const paymentDetails = await this.getPaymentDetails(account.id).catch(error => {
+        console.log(`Error getting payment details from counterparty`, error)
+        throw error
+      })
       const payment = await this.rippleClient.preparePayment(this.address, {
         source: {
           address: this.address,
@@ -135,14 +139,14 @@ export class XrpSettlementEngine {
           }
         },
         destination: {
-          address: account.xrpAddress || '',
+          address: paymentDetails.xrpAddress || '',
+          tag: paymentDetails.destinationTag,
           minAmount: {
             value: '' + drops,
             currency: 'drops'
           }
         }
       }, {
-          // TODO add max fee
         maxLedgerVersionOffset: 5
       })
       const { signedTransaction } = this.rippleClient.sign(payment.txJSON, this.secret)
@@ -155,6 +159,19 @@ export class XrpSettlementEngine {
     }
   }
 
+  async getPaymentDetails (accountId: string) {
+    const url = `${this.connectorUrl}\\accounts\\${accountId}\\messages`
+    const message = {
+      type: 'paymentDetails'
+    }
+    return axios.post(url, Buffer.from(JSON.stringify(message)), {
+      timeout: 10000,
+      headers: {
+        'Content-type': 'application/octet-stream'
+      }
+    }).then(response => response.data)
+  }
+
   async findAccountMiddleware (ctx: Koa.Context, next: () => Promise<any>) {
     const account = await ctx.redis.get(`${ctx.settlement_prefix}:accounts:${ctx.params.id}`)
     if (account) {
@@ -163,31 +180,6 @@ export class XrpSettlementEngine {
       ctx.throw(404)
     }
     await next()
-  }
-
-  async configAccount (accountId: string) {
-    const url = `${this.connectorUrl}\\accounts\\${accountId}\\messages`
-    const message = {
-      type: 'config',
-      data: {
-        xrpAddress: this.address
-      }
-    }
-    await axios.post(url, Buffer.from(JSON.stringify(message)), {
-      timeout: 10000,
-      headers: {
-        'Content-type': 'application/octet-stream'
-      }
-    }).then(response => {
-      console.log('Config successful for account:\t', accountId)
-      // TODO add logic to set the account to ready state
-    }).catch(error => {
-      console.log('Error attempting to send account config, attemping again in 5000ms', error)
-      // need to add retry logic and store the underlaying setTimeout to be able to cancel it
-      const retryTimeout = setTimeout(() => this.configAccount(accountId), 5000)
-
-      retryTimeout.unref()
-    })
   }
 
   async notifySettlement (accountId: string, amount: string) {
@@ -229,12 +221,12 @@ export class XrpSettlementEngine {
       return
     }
 
-    const fromAddress = tx.transaction.Account
-    console.log(`Got incoming XRP payment for ${drops} drops from XRP address: ${fromAddress}`)
+    const destinationTag = tx.transaction.DestinationTag
+    console.log(`Got incoming XRP payment for ${drops} drops from tag: ${destinationTag}`)
 
     try {
       // TODO: Determine who the balance came from
-      const accountId = await this.redis.get(`${DEFAULT_SETTLEMENT_ENGINE_PREFIX}:xrpAddress:${fromAddress}:accountId`)
+      const accountId = await this.redis.get(`${DEFAULT_SETTLEMENT_ENGINE_PREFIX}:destinationTag:${destinationTag}:accountId`)
       const accountJSON = await this.redis.get(`${DEFAULT_SETTLEMENT_ENGINE_PREFIX}:accounts:${accountId}`)
       if (accountJSON) {
         const account = JSON.parse(accountJSON)
@@ -243,7 +235,7 @@ export class XrpSettlementEngine {
       }
     } catch (err) {
       if (err.message.includes('No account associated')) {
-        debug(`No account associated with address: ${fromAddress}, adding ${drops} to that address' unclaimed balance`)
+        debug(`No account associated with destination tag: ${destinationTag}, adding ${drops} to that address' unclaimed balance`)
       } else {
         debug('Error crediting account: ', err)
         console.warn('Got incoming payment from an unknown account: ', JSON.stringify(tx))

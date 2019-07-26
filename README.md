@@ -1,4 +1,9 @@
-On ledger XRP settlement using the new proposed Interledger SE spec
+XRP On Ledger Settlement engine as per the proposed [Settlement RFC](https://github.com/interledger/rfcs/pull/536).
+
+Note the RFC has yet to be merged and thus the implementation could change to meet the spec at a later date. 
 
 ### TODO
-* [x] Retry logic for config messages to ensure counterparty is configured
+* [ ] Add logic to persist incoming settlements and requests to settle to ensure they are executed at a later time.
+* [ ] Update README
+* [ ] Dockerize the SE
+* [ ] Add integration tests

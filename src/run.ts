@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { XrpSettlementEngine, XrpSettlementEngineConfig } from '.'
 import * as Redis from 'ioredis'
 

@@ -1,5 +1,8 @@
 {
   "name": "ilp-settlement-xrp",
+  "bin": {
+    "ilp-settlement-xrp": "./build/run.js"
+  },
   "version": "1.0.0",
   "description": "",
   "main": "build/src/index.js",

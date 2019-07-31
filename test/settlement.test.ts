@@ -1,13 +1,13 @@
 import 'mocha'
 import * as sinon from 'sinon'
 import * as Chai from 'chai'
-import {XrpSettlementEngine} from '../src'
+import { XrpSettlementEngine } from '../src'
 import axios from 'axios'
 import * as RedisIo from 'ioredis'
-import {RippleAPI} from 'ripple-lib'
-import {getLocal, Mockttp} from 'mockttp'
-import {EventEmitter} from 'events'
-import {randomBytes} from "crypto"
+import { RippleAPI } from 'ripple-lib'
+import { getLocal, Mockttp } from 'mockttp'
+import { EventEmitter } from 'events'
+import { randomBytes } from "crypto"
 
 const assert = Object.assign(Chai.assert, sinon.assert)
 const Redis = require('ioredis-mock')
@@ -91,16 +91,16 @@ describe('Accounts Settlement', function () {
     await engine.shutdown()
   })
 
-  describe('Incoming Settlements from ledger', function() {
-    
+  describe('Incoming Settlements from ledger', function () {
+
     it('Notifies connector of incoming settlement for correct account', async () => {
-      const mockEndpoint = await mockttp.post(`/accounts/${dummyAccount.id}/settlement`).thenReply(200)
+      const mockEndpoint = await mockttp.post(`/accounts/${dummyAccount.id}/settlements`).thenReply(200)
       await redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
       const destinationTag = randomBytes(4).readUInt32BE(0)
       await redis.set(`${ENGINE_PREFIX}:destinationTag:${destinationTag}:accountId`, dummyAccount.id)
       await redis.set(`${ENGINE_PREFIX}:accountId:${dummyAccount.id}:destinationTag`, destinationTag)
       transaction.transaction.DestinationTag = destinationTag
-          
+
       rippleApi.connection.emit('transaction', transaction)
       await new Promise(resolve => setTimeout(resolve, 50))
 
@@ -114,7 +114,7 @@ describe('Accounts Settlement', function () {
     })
   })
 
-  describe('Outgoing Settlements from connector', function() {
+  describe('Outgoing Settlements from connector', function () {
 
     it('Attempts to get payment details from counter party when settlement is called', async () => {
       const paymentDetails = {
@@ -124,7 +124,7 @@ describe('Accounts Settlement', function () {
       const mockMessageEndpoint = await mockttp.post(`/accounts/${dummyAccount.id}/messages`).thenReply(200, Buffer.from(JSON.stringify(paymentDetails)))
       await redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
 
-      const response = await axios.post(`http://localhost:3000/accounts/${dummyAccount.id}/settlement`, {
+      const response = await axios.post(`http://localhost:3000/accounts/${dummyAccount.id}/settlements`, {
         amount: '5000000000',
         scale: 9
       })

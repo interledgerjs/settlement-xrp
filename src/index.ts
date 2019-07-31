@@ -92,7 +92,6 @@ export class XrpSettlementEngine {
   }
 
   public async start () {
-    console.log('STARTING TO LISTEN ON', this.port)
     this.server = this.app.listen(this.port)
     await this.rippleClient.connect()
     await this.subscribeToTransactions()
@@ -174,7 +173,7 @@ export class XrpSettlementEngine {
       timeout: 10000,
       headers: {
         'Content-type': 'application/octet-stream',
-        'Idempotency-Key' : uuidv4()
+        'Idempotency-Key': uuidv4()
       }
     }).then(response => response.data)
   }

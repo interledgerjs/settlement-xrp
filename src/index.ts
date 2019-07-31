@@ -105,7 +105,7 @@ export class XrpSettlementEngine {
     ])
   }
 
-  private setupRoutes() {
+  private setupRoutes () {
     this.router.post('/accounts', ctx => createAccount(ctx))
     this.router.get('/accounts/:id', ctx => showAccount(ctx))
     this.router.delete('/accounts/:id', ctx => destroyAccount(ctx))
@@ -189,7 +189,7 @@ export class XrpSettlementEngine {
     await next()
   }
 
-  async notifySettlement(accountId: string, amount: BigNumber, txHash: String) {
+  async notifySettlement (accountId: string, amount: BigNumber, txHash: String) {
     const url = `${this.connectorUrl}\\accounts\\${accountId}\\settlements`
     debug('Sending settlement for', amount)
     const message = {

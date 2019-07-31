@@ -105,16 +105,20 @@ export class XrpSettlementEngine {
     ])
   }
 
-  private setupRoutes () {
-    this.router.post('/accounts', (ctx) => createAccount(ctx))
-    this.router.get('/accounts/:id', (ctx) => showAccount(ctx))
-    this.router.delete('/accounts/:id', (ctx) => destroyAccount(ctx))
+  private setupRoutes() {
+    this.router.post('/accounts', ctx => createAccount(ctx))
+    this.router.get('/accounts/:id', ctx => showAccount(ctx))
+    this.router.delete('/accounts/:id', ctx => destroyAccount(ctx))
 
     // Account Messages
     this.router.post('/accounts/:id/messages', this.findAccountMiddleware, createAccountMessage)
 
     // Account Settlements
-    this.router.post('/accounts/:id/settlement', this.findAccountMiddleware , createAccountSettlement)
+    this.router.post(
+      '/accounts/:id/settlements',
+      this.findAccountMiddleware,
+      createAccountSettlement
+    )
   }
 
   private async subscribeToTransactions () {
@@ -185,21 +189,27 @@ export class XrpSettlementEngine {
     await next()
   }
 
-  async notifySettlement (accountId: string, amount: string) {
-    const url = `${this.connectorUrl}\\accounts\\${accountId}\\settlement`
+  async notifySettlement(accountId: string, amount: BigNumber, txHash: String) {
+    const url = `${this.connectorUrl}\\accounts\\${accountId}\\settlements`
+    debug('Sending settlement for', amount)
     const message = {
-      amount,
+      amount: amount.toString(),
       scale: 6
     }
-    await axios.post(url, message, {
-      timeout: 10000
-    }).then(response => {
-      // TODO add logic to set the account to ready state
-    }).catch(error => {
-      console.log('error notifying settlement', error)
-      // need to add retry logic and store the underlaying setTimeout to be able to cancel it
-
-    })
+    await axios
+      .post(url, message, {
+        timeout: 10000,
+        headers: {
+          'Idempotency-Key': txHash
+        }
+      })
+      .then(response => {
+        // TODO add logic to set the account to ready state
+      })
+      .catch(error => {
+        console.log('error notifying settlement', error)
+        // need to add retry logic and store the underlaying setTimeout to be able to cancel it
+      })
   }
 
   /**
@@ -233,8 +243,10 @@ export class XrpSettlementEngine {
       const accountJSON = await this.redis.get(`${DEFAULT_SETTLEMENT_ENGINE_PREFIX}:accounts:${accountId}`)
       if (accountJSON) {
         const account = JSON.parse(accountJSON)
-        await this.notifySettlement(account.id, drops.toString())
-        debug(`Credited account: ${account} for incoming settlement, balance is now: ${drops.toString()}`)
+        await this.notifySettlement(account.id, drops, tx.transaction.hash)
+        debug(
+          `Credited account: ${account} for incoming settlement, balance is now: ${drops.toString()}`
+        )
       }
     } catch (err) {
       if (err.message.includes('No account associated')) {

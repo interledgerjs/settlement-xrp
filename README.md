@@ -5,5 +5,5 @@ Note the RFC has yet to be merged and thus the implementation could change to me
 ### TODO
 * [ ] Add logic to persist incoming settlements and requests to settle to ensure they are executed at a later time.
 * [ ] Update README
-* [x] Dockerize the SE
+* [ ] Dockerize the SE
 * [ ] Add integration tests

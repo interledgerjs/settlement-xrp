@@ -1,12 +1,13 @@
 FROM node:current-alpine
 WORKDIR /app
 
-COPY package.json /app
+COPY package.json .
 
 # RUN npm install --only=production
 RUN npm install
 
-COPY . /app
+COPY . .
 RUN npm run build
-CMD node ./build/run.js
+
 EXPOSE 3000
+CMD node build/run.js

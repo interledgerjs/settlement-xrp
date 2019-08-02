@@ -6,7 +6,7 @@ Note the RFC has yet to be merged and thus the implementation could change to me
 To build this engine, issue the following command:
 
 ```bash
-npm install && ./node_modules/typescript/bin/tsc && npm link
+npm install && npm run build && npm link
 ```
 
 ## Configuration
@@ -19,6 +19,8 @@ This settlement engine provides for the following configurable settings:
 * **CONNECTOR_URL**: The base HTTP URL that this settlement engine can make API calls to in order to communicate with the Connector account this engine is operating on behalf of. DEFAULT: `http://localhost:7771`
 
 * **ENGINE_PORT**: The port that this settlement engine should bind to. DEFAULT: `3000`
+
+* **REDIS_HOST**: The host that this settlement engine should use when attempting to communicate with Redis. DEFAULT: `localhost`
 
 * **REDIS_PORT**: The port that this settlement engine should use when attempting to communicate with Redis. DEFAULT: `6379`
 

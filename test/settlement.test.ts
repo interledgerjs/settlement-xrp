@@ -135,7 +135,7 @@ describe('Accounts Settlement', function () {
       assert.deepEqual(request.body.json, {
         type: 'paymentDetails'
       })
-      assert.strictEqual(response.status, 200)
+      assert.strictEqual(response.status, 201)
     })
   })
 })

@@ -43,7 +43,7 @@ describe('Accounts', function () {
   it('can add an account', async () => {
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
 
-    assert.strictEqual(response.status, 200)
+    assert.strictEqual(response.status, 201)
     const account = await redis.get('xrp:accounts:testId')
     if(account) {
       assert.deepEqual(JSON.parse(account), dummyAccount)
@@ -60,7 +60,7 @@ describe('Accounts', function () {
 
     const response = await axios.post('http://localhost:3000/accounts', dummyAccount).catch(error => {throw new Error(error.message)})
 
-    assert.strictEqual(response.status, 200)
+    assert.strictEqual(response.status, 201)
     const account = await redis.get('xrp:accounts:testId')
     if(account) {
       assert.deepEqual(JSON.parse(account), existingAccount)
@@ -73,7 +73,7 @@ describe('Accounts', function () {
     await redis.set(`xrp:accounts:${dummyAccount.id}`, JSON.stringify(dummyAccount))
 
     const response = await axios.get(`http://localhost:3000/accounts/${dummyAccount.id}`).catch(error => {throw new Error(error.message)})
-    
+
     assert.strictEqual(response.status, 200)
     assert.deepEqual(response.data, dummyAccount)
   })
@@ -83,7 +83,7 @@ describe('Accounts', function () {
 
     const response = await axios.delete(`http://localhost:3000/accounts/${dummyAccount.id}`).catch(error => {throw new Error(error.message)})
 
-    assert.strictEqual(response.status, 200)
+    assert.strictEqual(response.status, 204)
     const account = await redis.get('xrp:accounts:testId')
     assert.isNull(account)
   })

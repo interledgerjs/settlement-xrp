@@ -21,7 +21,7 @@ export async function create (ctx: Context) {
     ctx.body = account
   }
 
-  ctx.status = 200
+  ctx.status = 201
 }
 
 /** Get account by Id */

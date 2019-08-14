@@ -15,7 +15,7 @@
     "build/doc"
   ],
   "scripts": {
-    "start": "npm run build && node ./build/src/run.js",
+    "start": "npm run build && node ./build/run.js",
     "clean": "rm -Rf .nyc_output && rm -Rf coverage && rm -Rf build ",
     "build": "tsc",
     "lint": "tslint --project .",

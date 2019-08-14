@@ -1,5 +1,4 @@
 import { Context } from 'koa'
-import { Redis } from 'ioredis'
 import { normalizeAsset } from '../utils/normalizeAsset'
 
 export async function create (ctx: Context) {
@@ -7,8 +6,16 @@ export async function create (ctx: Context) {
   const account = JSON.parse(accountJson)
 
   const body = ctx.request.body
-  const amount = normalizeAsset(body.scale, 6, BigInt(body.amount))
+  const clearingScale = body.scale
+  const amount = normalizeAsset(clearingScale, 6, BigInt(body.amount))
+
   await ctx.settleAccount(account, amount.toString())
 
-  ctx.status = 200
+  let settlementComittment = {
+    scale: 6,
+    amount: amount.toString()
+  }
+
+  ctx.body = settlementComittment
+  ctx.status = 201
 }

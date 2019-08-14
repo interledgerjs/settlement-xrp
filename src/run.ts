@@ -10,10 +10,15 @@ const LEDGER_SECRET =
 const LEDGER_SCALE = 6
 const CONNECTOR_URL = process.env.CONNECTOR_URL || 'http://localhost:7771' // where the connector settlement api is NOTE, NOT THE ACCOUNTS API OR THE BTP API
 const ENGINE_PORT = process.env.ENGINE_PORT || 3000 // Where to listen for connections on
+
+const REDIS_URI = process.env.REDIS_URI
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost'
 const REDIS_PORT = process.env.REDIS_PORT || 6379 // Where redis is hosted at
 
-const redisClient = new Redis({ host: REDIS_HOST, port: +REDIS_PORT })
+const redisOptions = REDIS_URI ? REDIS_URI : { host: REDIS_HOST, port: REDIS_PORT }
+
+// @ts-ignore as redis needs type definition update
+const redisClient = new Redis(redisOptions)
 
 const config: XrpSettlementEngineConfig = {
   address: LEDGER_ADDRESS,

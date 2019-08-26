@@ -1,9 +1,6 @@
 {
-    "extends": "tslint-config-standard",
-    "linterOptions": {
-        "exclude": [
-        "test/**/*"
-        ]
-    }
+  "extends": ["tslint-config-standard", "tslint-config-prettier"],
+  "linterOptions": {
+    "exclude": ["test/**/*"]
+  }
 }
-

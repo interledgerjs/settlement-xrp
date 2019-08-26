@@ -8,16 +8,14 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "sourceMap": true,
+    "strict": true,
     "inlineSources": true,
-    "strictNullChecks": true,
-    "suppressImplicitAnyIndexErrors": true,
+    // "strictNullChecks": true,
+    // "suppressImplicitAnyIndexErrors": true,
     "outDir": "./build",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "esModuleInterop": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "**/*.spec.ts",
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.spec.ts"]
 }

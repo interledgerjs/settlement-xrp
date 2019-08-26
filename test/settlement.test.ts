@@ -75,10 +75,7 @@ describe('Accounts Settlement', function () {
     sinon.stub(rippleApi, 'request').callsFake(() => Promise.resolve())
 
     engine = new XrpSettlementEngine({
-      address: 'r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV',
       secret: 'string',
-      assetScale: 6,
-      enginePrefix: ENGINE_PREFIX,
       redis,
       rippledClient: rippleApi,
       connectorUrl: 'http://localhost:7777'

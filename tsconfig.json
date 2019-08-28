@@ -1,21 +1,21 @@
 {
   "compilerOptions": {
+    "baseUrl": "src",
+    "rootDir": "src",
+    "outDir": "build",
     "target": "esnext",
     "module": "commonjs",
-    "declaration": true,
-    "noImplicitAny": true,
-    "removeComments": true,
     "moduleResolution": "node",
-    "skipLibCheck": true,
     "sourceMap": true,
-    "strict": true,
-    "inlineSources": true,
-    // "strictNullChecks": true,
-    // "suppressImplicitAnyIndexErrors": true,
-    "outDir": "./build",
-    "rootDir": "./src",
-    "esModuleInterop": true
+    "declaration": true,
+    "removeComments": true,
+    "strict": true /* Enable all strict type-checking options. */,
+    "esModuleInterop": true,
+    "typeRoots": ["node_modules/@types", "src/types"],
+    "paths": {
+      "ripple-keypairs": ["./types/ripple-keypairs"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["**/*.spec.ts"]
+  "include": ["src/**/*"]
+  // "exclude": ["test/**/*.ts"]
 }

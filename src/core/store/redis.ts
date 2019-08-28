@@ -1,7 +1,6 @@
 import BigNumber from 'bignumber.js'
 import Redis from 'ioredis'
 import { SettlementStore } from '.'
-import { DatabaseSafe } from '../utils'
 
 /**
  * Redis Key Namespace
@@ -12,15 +11,15 @@ import { DatabaseSafe } from '../utils'
  *
  * accounts:[accountId]:settlement-requests:[idempotencyKey]
  * - Hash of each request from connector to send an outgoing settlement
- * - `amount` -- floating point string of amount queued for settlement;
+ * - `amount` -- arbitrary precision string of amount queued for settlement
  * - `last_request_timestamp` -- UNIX timestamp in seconds when most recent request
- *   was received with the same idempotency key
+ *    was received with the same idempotency key
  *
  * accounts:[accountId]:queued-settlements
- * - List of floating point strings of outgoing settlements to be performed (queued and failed)
+ * - List of arbitrary precision strings of outgoing settlements to be performed (queued and failed)
  *
  * accounts:[accountId]:uncredited-settlements
- * - List of floating point strings of incoming settlements yet to be credited by connector
+ * - List of arbitrary precision strings of incoming settlements yet to be credited by connector
  */
 
 export interface RedisOpts {
@@ -29,6 +28,8 @@ export interface RedisOpts {
   port?: number
   uri?: string
 }
+
+type RedisListTxResponse = [[null, string[]], [null, null]]
 
 export const connectRedis = async ({ client, uri, host, port }: RedisOpts = {}): Promise<
   SettlementStore
@@ -65,60 +66,50 @@ export const connectRedis = async ({ client, uri, host, port }: RedisOpts = {}):
   })
 
   const self: SettlementStore = {
-    async createAccount(accountId: DatabaseSafe) {
+    async createAccount(accountId) {
       const alreadyExists = (await redis.sadd('accounts', accountId)) === 0 // Returns number of elements added to set
       if (alreadyExists) {
-        return Promise.reject(new Error('Account already exists')) // TODO however this is being called, it's unhandled
+        throw new Error('Account already exists')
       }
     },
 
-    async isExistingAccount(accountId: DatabaseSafe) {
+    async isExistingAccount(accountId) {
       return (await redis.sismember('accounts', accountId)) === 1
     },
 
-    // TODO I might need to move the "DatabaseSafe" type to SettlementStore in order for it to be enforced...
-    // TODO Rename to SafeString or SafeKey ?
-
-    async deleteAccount(accountId: DatabaseSafe) {
+    async deleteAccount(accountId) {
       await redis.deleteAccount(accountId)
     },
 
-    // TODO This needs to ensure amount isn't NaN... sigh
-    async queueSettlement(accountId: DatabaseSafe, idempotencyKey: DatabaseSafe, amount) {
-      const res = await redis.queueSettlement(
-        accountId,
-        idempotencyKey,
-        amount.toString(),
-        Date.now()
+    async queueSettlement(accountId, idempotencyKey, amount) {
+      return new BigNumber(
+        await redis.queueSettlement(accountId, idempotencyKey, amount.toString(), Date.now())
       )
-
-      return new BigNumber(res)
     },
 
-    async loadAmountToSettle(accountId: DatabaseSafe) {
+    async loadAmountToSettle(accountId) {
       return redis
         .multi()
         .lrange(`accounts:${accountId}:queued-settlements`, 0, -1)
         .del(`accounts:${accountId}:queued-settlements`)
         .exec()
-        .then(async ([[err, res]]) => BigNumber.sum(...res))
+        .then(async ([[err, res]]: RedisListTxResponse) => BigNumber.sum(0, ...res))
     },
 
-    // TODO Is this saving NaN amounts back to the DB? yikes
-    async saveAmountToSettle(accountId: DatabaseSafe, amount) {
+    async saveAmountToSettle(accountId, amount) {
       await redis.lpush(`accounts:${accountId}:queued-settlements`, amount.toString())
     },
 
-    async loadAmountToCredit(accountId: DatabaseSafe) {
+    async loadAmountToCredit(accountId) {
       return redis
         .multi()
         .lrange(`accounts:${accountId}:uncredited-settlements`, 0, -1)
         .del(`accounts:${accountId}:uncredited-settlements`)
         .exec()
-        .then(([[err, res]]) => BigNumber.sum(...res))
+        .then(([[err, res]]: RedisListTxResponse) => BigNumber.sum(0, ...res))
     },
 
-    async saveAmountToCredit(accountId: DatabaseSafe, amount) {
+    async saveAmountToCredit(accountId, amount) {
       await redis.lpush(`accounts:${accountId}:uncredited-settlements`, amount.toString())
     },
 

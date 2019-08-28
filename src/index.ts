@@ -134,7 +134,7 @@ export const createEngine = (opts: XrpEngineOpts): ConnectSettlementEngine => as
        * - https://xrpl.org/basic-data-types.html#specifying-currency-amounts
        * - `delivered_amount` may represent a non-XRP asset, so ensure it's a string
        */
-      const amount = new BigNumber(tx.meta.delivered_amount)
+      const amount = new BigNumber(tx.meta.delivered_amount).shiftedBy(-6) // Convert from drops to XRP
       if (!amount.isGreaterThan(0)) {
         return
       }

@@ -3,18 +3,11 @@ import { BigNumber } from 'bignumber.js'
 import bodyParser from 'body-parser'
 import debug from 'debug'
 import express from 'express'
-import { promisify } from 'util'
 import { v4 as uuid } from 'uuid'
-import {
-  Context,
-  deleteAccount,
-  handleMessage,
-  settleAccount,
-  setupAccount,
-  validateAccount
-} from './controllers'
-import { SettlementStore } from './store'
-import { convertFromQuantity, convertToQuantity, isQuantity, retryRequest } from './utils'
+import { createController } from './controllers'
+import { SettlementStore, isSafeKey } from './store'
+import { fromQuantity, isQuantity, isNaturalNumber } from './utils/quantity'
+import { retryRequest } from './utils/retry'
 
 /**
  * Settlement system -specific functionality that each settlement engine
@@ -35,6 +28,8 @@ export interface SettlementEngine {
    *   precision first
    * - The leftover, unsettled amount will automatically be tracked and retried later
    *   based on the amount returned
+   * - If Promise is rejected, for safety, the full amount will assumed to be settled,
+   *   so ensure all rejections are handled accordingly
    *
    * @param accountId Unique account identifier
    * @param amount Maximum amount to settle, in standard unit of asset (arbitrary precision)
@@ -60,25 +55,43 @@ export interface SettlementEngine {
   close?(accountId: string): Promise<void>
 
   /**
-   * Disconnects the settlement engine
+   * Disconnect the settlement engine
    * - For example, gracefully closes connections to the ledger and/or databases
    */
   disconnect?(): Promise<void>
 }
 
-// TODO add other docs here
-
 /**
  * Callbacks provided to each settlement engine
  */
 export interface AccountServices {
+  /**
+   * Send a message to the given account and return their response
+   *
+   * @param accountId Unique account identifier to send message to
+   * @param message Object to be serialized as JSON
+   */
   sendMessage(accountId: string, message: any): Promise<any>
 
+  /**
+   * Send a notification to the connector to credit the given incoming settlement
+   *
+   * @param accountId Unique account identifier (recipient of settlement)
+   * @param amount Amount received as an incoming settlement
+   * @param settlementId Unique dentifier for this settlement derived from a cryptographically secure source of randomness
+   */
   creditSettlement(accountId: string, amount: BigNumber, settlementId?: string): void
 
-  trySettlement(accountId: string, settle: (amount: BigNumber) => Promise<BigNumber>): void
+  /**
+   * Retry failed or queued outgoing settlements
+   * - Automatically called after the settlement engine is instantiated
+   *
+   * @param accountId Unique account identifier
+   */
+  trySettlement(accountId: string): void
 }
 
+/** Connect and instantiate the settlement engine */
 export type ConnectSettlementEngine = (services: AccountServices) => Promise<SettlementEngine>
 
 const log = debug('settlement-core')
@@ -97,7 +110,7 @@ export interface SettlementServer {
 export const startServer = async (
   createEngine: ConnectSettlementEngine,
   store: SettlementStore,
-  config: SettlementServerConfig
+  config: SettlementServerConfig = {}
 ): Promise<SettlementServer> => {
   const connectorUrl = config.connectorUrl || 'http://localhost:7771'
 
@@ -106,16 +119,20 @@ export const startServer = async (
 
   const port = config.port || 3000
 
-  // Store reference to pending incoming/outgoing settlement tasks to prevent money
-  // from being lost during shutdown
-  let pendingIncomingSettlement = Promise.resolve()
-  let pendingOutgoingSettlement = Promise.resolve()
-
-  // TODO Add background task to clear idempotency keys? Or should that be a DB responsibility?
+  // TODO Add DB background task to clear idempotency keys?
 
   // Create the context passed to the settlement engine
   const services: AccountServices = {
     sendMessage: async (accountId, message) => {
+      if (!isSafeKey(accountId)) {
+        throw new Error(`Failed to send message: Invalid account: account=${accountId}`)
+      }
+
+      const accountExists = await store.isExistingAccount(accountId)
+      if (!accountExists) {
+        throw new Error(`Failed to send message: Account doesn't exist: account=${accountId}`)
+      }
+
       const url = `${sendMessageUrl}/accounts/${accountId}/messages`
       return axios
         .post(url, Buffer.from(JSON.stringify(message)), {
@@ -129,142 +146,217 @@ export const startServer = async (
 
     // TODO Should this save the outgoing idempotency key to the DB with request state so it may be retried (and not lost)?
 
-    creditSettlement: (accountId, amount, settlementId) => {
-      pendingIncomingSettlement = pendingIncomingSettlement.finally(async () => {
-        const accountExists = await store.isExistingAccount(accountId)
-        if (!accountExists) {
-          // TODO Should it log here?
-          return
-        }
+    creditSettlement: async (accountId, amount, settlementId = uuid()) => {
+      let details = `amountToCredit=${amount} account=${accountId} settlementId=${settlementId}`
 
-        // Load all uncredited settlement amounts from Redis
-        const uncreditedAmounts = await store.loadAmountToCredit(accountId).catch(err => {
-          log(`Error: Failed to load uncredited incoming settlements to retry:`, err)
+      if (amount.isZero()) {
+        return
+      }
+
+      if (!isNaturalNumber(amount)) {
+        return log(`Error: Failed to credit settlement, invalid amount: ${details}`)
+      }
+
+      if (!isSafeKey(accountId)) {
+        return log(`Error: Failed to credit settlement, invalid account: ${details}`)
+      }
+
+      const accountExists = await store.isExistingAccount(accountId)
+      if (!accountExists) {
+        return log(`Error: Failed to credit settlement, account doesn't exist: ${details}`)
+      }
+
+      // Load all uncredited settlement amounts from Redis
+      const uncreditedAmounts = await store
+        .loadAmountToCredit(accountId)
+        .then(amount => {
+          if (!isNaturalNumber(amount)) {
+            throw new Error('Invalid uncredited amounts, database may be corrupted')
+          }
+
+          return amount
+        })
+        .catch(err => {
+          log(`Error: Failed to load uncredited settlement amounts: account=${accountId}`, err)
           return new BigNumber(0)
         })
 
-        // TODO ^ should that add a log on success, too?
+      if (uncreditedAmounts.isGreaterThan(0)) {
+        log(`Loaded uncredited amount of ${uncreditedAmounts} to retry notifying connector`)
+      }
 
-        const amountToCredit = amount.plus(uncreditedAmounts)
-        const quantityToCredit = convertToQuantity(amountToCredit)
+      const amountToCredit = amount.plus(uncreditedAmounts)
 
-        const idempotencyKey = settlementId || uuid()
-        const details = `account=${accountId} id=${idempotencyKey} amount=${amountToCredit}`
+      // amountToCredit must be positive and finite due to validation on amount & uncreditedAmounts
+      // ...so this Quantity should always be valid
+      const scale = amountToCredit.decimalPlaces()
+      const quantityToCredit = {
+        scale,
+        amount: amountToCredit.shiftedBy(scale).toFixed(0) // `toFixed` never resorts to exponential notation
+      }
 
-        // TODO Add "sending notification log here?"
-
-        const notifySettlement = () =>
-          axios.post(`${creditSettlementUrl}/accounts/${accountId}/settlements`, {
-            data: quantityToCredit,
-            timeout: 10000,
-            headers: {
-              'Idempotency-Key': idempotencyKey
-            }
-          })
-
-        const amountCredited = await retryRequest(notifySettlement)
-          .then(response => {
-            if (isQuantity(response.data)) {
-              return convertFromQuantity(response.data)
-            }
-
-            log(`Error: Connector failed to process settlement: ${details}`)
-            return new BigNumber(0)
-          })
-          .catch(err => {
-            if (err.response && isQuantity(err.response.data)) {
-              return convertFromQuantity(err.response.data)
-            }
-
-            log(`Error: Failed to credit incoming settlement: ${details}`, err)
-            return new BigNumber(0)
-          })
-
-        const leftoverAmount = amountToCredit.minus(amountCredited)
-        if (leftoverAmount.isLessThan(0)) {
-          return log(`Error: Connector credited too much: ${details} credited=${amountCredited}`)
-        } else if (leftoverAmount.isZero()) {
-          return log(`Connector credited full settlement: ${details}`)
-        }
-
-        // Refund the leftover amount
-        await store
-          .saveAmountToCredit(accountId, leftoverAmount)
-          .then(() =>
-            log(`Saved uncredited incoming settlement: ${details} leftover=${leftoverAmount}`)
-          )
-          .catch(err =>
-            log(`Error: Failed to save uncredited settlement, balances incorrect: ${details}`, err)
-          )
-      })
-    },
-
-    trySettlement: (accountId: string, settle: (amount: BigNumber) => Promise<BigNumber>) => {
-      pendingOutgoingSettlement = pendingOutgoingSettlement.finally(async () => {
-        const amountToSettle = await store.loadAmountToSettle(accountId) // TODO catch errors -- handle weird things
-        const amountSettled = await settle(amountToSettle).catch((err: Error) => {
-          log(
-            `Error performing outgoing settlement for account ${accountId} for ${amountToSettle}, balances incorrect:`,
-            err
-          ) // TODO simplify this log
-          return amountToSettle // For safety, assume a settlement for the full amount was performed
+      const notifySettlement = () =>
+        axios({
+          method: 'POST',
+          url: `${creditSettlementUrl}/accounts/${accountId}/settlements`,
+          data: quantityToCredit,
+          timeout: 10000,
+          headers: {
+            'Idempotency-Key': settlementId
+          }
         })
 
-        const unsettledAmount = amountToSettle.minus(amountSettled)
-        if (unsettledAmount.isLessThanOrEqualTo(0)) {
-          // TODO Log that the SE implementation f-ed up
-          return
-        }
+      details = `amountToCredit=${amountToCredit} account=${accountId} settlementId=${settlementId}`
+      log(`Notifying connector to credit settlement: ${details}`)
 
-        await store
-          .saveAmountToSettle(accountId, unsettledAmount)
-          .catch((err: Error) =>
-            log(
-              `Failed to save failed outgoing settlements for account ${accountId} of ${unsettledAmount}, balances are out-of-sync:`,
-              err
-            )
-          )
+      const amountCredited = await retryRequest(notifySettlement)
+        .then(response => {
+          if (isQuantity(response.data)) {
+            return fromQuantity(response.data)
+          }
+
+          log(`Error: Connector failed to process settlement: ${details}`)
+          return new BigNumber(0)
+        })
+        .catch(err => {
+          if (err.response && isQuantity(err.response.data)) {
+            return fromQuantity(err.response.data)
+          }
+
+          log(`Error: Failed to credit incoming settlement: ${details}`, err)
+          return new BigNumber(0)
+        })
+
+      const leftoverAmount = amountToCredit.minus(amountCredited)
+      details = `leftover=${leftoverAmount} credited=${amountCredited} amountToCredit=${amountToCredit} account=${accountId} settlementId=${settlementId}`
+
+      // Protects against saving `NaN` or `Infinity` to the database
+      if (!isNaturalNumber(leftoverAmount)) {
+        return log(`Error: Connector credited invalid amount: ${details}`)
+      }
+
+      log(`Connector credited incoming settlement: ${details}`)
+
+      // Don't save 0 amounts to the database
+      if (leftoverAmount.isZero()) {
+        return
+      }
+
+      // Refund the leftover amount to retry later
+      await store
+        .saveAmountToCredit(accountId, leftoverAmount)
+        .catch(err =>
+          log(`Error: Failed to save uncredited settlement, balances incorrect: ${details}`, err)
+        )
+    },
+
+    trySettlement: async accountId => {
+      let details = `account=${accountId}`
+
+      if (!engine) {
+        return log(`Error: Engine must be connected before triggering settlment: ${details}`)
+      }
+
+      if (!isSafeKey(accountId)) {
+        return log(`Error: Failed to settle, invalid account: ${details}`)
+      }
+
+      const amountToSettle = await store
+        .loadAmountToSettle(accountId)
+        .then(queuedAmount => {
+          if (!isNaturalNumber(queuedAmount)) {
+            throw new Error('Invalid queued settlement amounts, database may be corrupted')
+          }
+
+          return queuedAmount
+        })
+        .catch(err => {
+          log(`Error: Failed to load amount queued for settlement: ${details}`, err)
+          return new BigNumber(0)
+        })
+
+      if (amountToSettle.isZero()) {
+        return
+      }
+
+      const amountSettled = await engine.settle(accountId, amountToSettle).catch(err => {
+        log(`Settlement failed: amountToSettle=${amountToSettle} ${details}`, err)
+        return amountToSettle // For safety, assume the full settlement was performed
       })
+
+      const leftoverAmount = amountToSettle.minus(amountSettled)
+      details = `leftover=${leftoverAmount} settled=${amountSettled} amountToSettle=${amountToSettle} account=${accountId}`
+
+      if (!isNaturalNumber(amountSettled)) {
+        return log(`Error: Invalid settlement outcome: ${details}`)
+      }
+
+      // Protects against saving `NaN` or `Infinity` to the database
+      if (!isNaturalNumber(leftoverAmount)) {
+        return log(`Error: Settled too much: ${details}`)
+      }
+
+      log(`Settlement completed: ${details}`)
+
+      // Don't save 0 amounts to the database
+      if (leftoverAmount.isZero()) {
+        return
+      }
+
+      await store
+        .saveAmountToSettle(accountId, leftoverAmount)
+        .catch(err =>
+          log(`Error: Failed to save unsettled amount, balances incorrect: ${details}`, err)
+        )
     }
   }
 
   const engine = await createEngine(services)
 
-  const context: Context = {
+  const {
+    validateAccount,
+    setupAccount,
+    isExistingAccount,
+    deleteAccount,
+    settleAccount,
+    handleMessage
+  } = createController({
     engine,
     store,
     services
-  }
+  })
 
   const app = express()
 
-  app.put('/accounts/:id', setupAccount(context))
-  app.delete('/accounts/:id', deleteAccount(context))
+  app.put('/accounts/:id', validateAccount, setupAccount)
+  app.delete('/accounts/:id', validateAccount, isExistingAccount, deleteAccount)
 
   app.post(
     '/accounts/:id/settlements',
     bodyParser.json(),
-    validateAccount(context),
-    settleAccount(context)
+    validateAccount,
+    isExistingAccount,
+    settleAccount
   )
 
   app.post(
     '/accounts/:id/messages',
     bodyParser.raw(),
-    validateAccount(context),
-    handleMessage(context)
+    validateAccount,
+    isExistingAccount,
+    handleMessage
   )
 
   const server = app.listen(port)
 
   return {
     async shutdown() {
-      await promisify(server.close)()
+      await new Promise(resolve => server.close(resolve))
 
-      await pendingIncomingSettlement
-      await pendingOutgoingSettlement // TODO What if settlement takes a long time...? (Timeout?)
-
-      // TODO await pending message handlers, too?
+      /**
+       * TODO How should awaiting pending settlements be implemented?
+       * Could be implemented within individual SEs, *but* that wouldn't work for refunding the leftovers
+       */
 
       if (engine.disconnect) {
         await engine.disconnect()

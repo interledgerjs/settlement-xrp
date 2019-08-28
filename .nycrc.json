@@ -1,0 +1,4 @@
+{
+  "include": ["build/**/*.js"],
+  "reporter": ["text", "lcov"]
+}

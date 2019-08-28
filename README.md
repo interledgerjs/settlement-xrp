@@ -1,8 +1,6 @@
 # XRP On-Ledger Settlement Engine
 
-**Note:** this implements the new specification from the [settlement engine RFC](https://github.com/interledger/rfcs/pull/536). As the RFC is yet to be merged, the spec may change at a later date.
-
-## Build the Engine
+## Build
 
 To build this engine, issue the following command:
 

@@ -1,25 +1,32 @@
-// import { connectRedis } from './store/redis'
+#!/usr/bin/env node
 
-// startServer(
-//   createEngine({
-//     xrpSecret: process.env.LEDGER_SECRET || 'sahVoeg97nuitefnzL9GHjp2Z6kpj',
-//     rippledUri: process.env.RIPPLED_URI
-//   })
-// )
-//   .then(() => {
-//     console.log('Listening for incoming payments...')
-//   })
-//   .catch(err => console.error(err))
+import { connectRedis } from './core/store/redis'
+import { startServer } from './core'
+import { createEngine } from '.'
 
-// // By default, Redis connects to 127.0.0.1:6379
-// const store = await connectRedis({
-//   uri: process.env.REDIS_URI,
-//   host: process.env.REDIS_HOST,
-//   port: process.env.REDIS_PORT
-//     ? parseInt(process.env.REDIS_PORT, 10)
-//     : undefined
-// })
+async function run() {
+  const engine = createEngine({
+    xrpSecret: process.env.LEDGER_SECRET,
+    rippledUri: process.env.RIPPLED_URI
+  })
 
-// parseInt(process.env.ENGINE_PORT, 10)
+  const store = await connectRedis({
+    uri: process.env.REDIS_URI,
+    db: 1
+  })
 
-// ensure the server is gracefully shutdown when the process exists (move this to "run" ?)
+  const { shutdown } = await startServer(engine, store, {
+    connectorUrl: process.env.CONNECTOR_URL,
+    port: process.env.ENGINE_PORT
+  })
+
+  process.on('SIGINT', async () => {
+    await shutdown()
+
+    if (store.disconnect) {
+      await store.disconnect()
+    }
+  })
+}
+
+run().catch(err => console.error(err))

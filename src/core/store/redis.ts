@@ -22,26 +22,25 @@ import { SettlementStore } from '.'
  * - List of arbitrary precision strings of incoming settlements yet to be credited by connector
  */
 
-export interface RedisOpts {
+/** Configuration options for the connection to the Redis database */
+export interface RedisOpts extends Redis.RedisOptions {
   client?: Redis.Redis
-  host?: string
-  port?: number
   uri?: string
 }
 
 type RedisListTxResponse = [[null, string[]], [null, null]]
 
-export const connectRedis = async ({ client, uri, host, port }: RedisOpts = {}): Promise<
+export const connectRedis = async ({ client, uri, ...opts }: RedisOpts = {}): Promise<
   SettlementStore
 > => {
-  const redis = client || (host || port ? new Redis({ port, host }) : new Redis(uri))
+  const redis = client ? client : new Redis(uri, opts)
 
   redis.defineCommand('deleteAccount', {
     numberOfKeys: 0,
     lua: `redis.call('SREM', 'accounts', ARGV[1])
           local pattern = 'accounts:' .. ARGV[1] .. '*'
           return redis.call('DEL', table.unpack(redis.call('KEYS', pattern)))`
-  })
+  }) // TODO Update this: `KEYS` is not recommended in production code: https://redis.io/commands/keys
 
   redis.defineCommand('queueSettlement', {
     numberOfKeys: 0,
@@ -67,10 +66,7 @@ export const connectRedis = async ({ client, uri, host, port }: RedisOpts = {}):
 
   const self: SettlementStore = {
     async createAccount(accountId) {
-      const alreadyExists = (await redis.sadd('accounts', accountId)) === 0 // Returns number of elements added to set
-      if (alreadyExists) {
-        throw new Error('Account already exists')
-      }
+      return (await redis.sadd('accounts', accountId)) === 0 // Returns number of elements added to set
     },
 
     async isExistingAccount(accountId) {
@@ -106,7 +102,7 @@ export const connectRedis = async ({ client, uri, host, port }: RedisOpts = {}):
         .lrange(`accounts:${accountId}:uncredited-settlements`, 0, -1)
         .del(`accounts:${accountId}:uncredited-settlements`)
         .exec()
-        .then(([[err, res]]: RedisListTxResponse) => BigNumber.sum(0, ...res))
+        .then(([[, res]]: RedisListTxResponse) => BigNumber.sum(0, ...res))
     },
 
     async saveAmountToCredit(accountId, amount) {

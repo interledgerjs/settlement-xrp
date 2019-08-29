@@ -4,11 +4,12 @@ import debug from 'debug'
 import { deriveAddress, deriveKeypair } from 'ripple-keypairs'
 import { RippleAPI } from 'ripple-lib'
 import { ConnectSettlementEngine, SettlementEngine } from './core'
+import axios, { AxiosResponse } from 'axios'
 
 const log = debug('settlement-xrp')
 
 export interface XrpEngineOpts {
-  xrpSecret: string
+  xrpSecret?: string
   rippledUri?: string
   rippleClient?: RippleAPI
 }
@@ -17,11 +18,11 @@ export interface XrpSettlementEngine extends SettlementEngine {
   handleTransaction(tx: any): void
 }
 
-export const createEngine = (opts: XrpEngineOpts): ConnectSettlementEngine => async ({
+export const createEngine = (opts: XrpEngineOpts = {}): ConnectSettlementEngine => async ({
   sendMessage,
   creditSettlement
 }) => {
-  const xrpSecret = opts.xrpSecret
+  const xrpSecret = opts.xrpSecret || (await generateTestnetAccount())
   const xrpAddress = deriveAddress(deriveKeypair(xrpSecret).publicKey)
 
   const rippleClient: RippleAPI =
@@ -169,9 +170,30 @@ interface PaymentDetails {
   destinationTag: number
 }
 
+const MAX_UINT_32 = 4294967295
+
 const isPaymentDetails = (o: any): o is PaymentDetails =>
   typeof o === 'object' &&
   typeof o.xrpAddress === 'string' &&
   Number.isInteger(o.destinationTag) &&
   o.destinationTag >= 0 &&
-  o.destinationTag <= 4294967295
+  o.destinationTag <= MAX_UINT_32
+
+interface RippleTestnetResponse {
+  account?: {
+    secret: string
+    address: string
+  }
+}
+
+export const generateTestnetAccount = async () =>
+  axios
+    .post('https://faucet.altnet.rippletest.net/accounts')
+    .then(({ data }: AxiosResponse<RippleTestnetResponse>) => {
+      if (data && data.account) {
+        log(`Generated new XRP testnet account: address=${data.account.address}`)
+        return data.account.secret
+      }
+
+      throw new Error('Failed to generate new XRP testnet account')
+    })

@@ -2,7 +2,7 @@ import test from 'ava'
 import axios from 'axios'
 import getPort from 'get-port'
 import { getLocal } from 'mockttp'
-import { v4 as uuid } from 'uuid'
+import uuid from 'uuid/v4'
 import { createEngine } from '.'
 import { startServer } from './core'
 import { connectRedis } from './core/store/redis'
@@ -17,25 +17,12 @@ test('Sends and receives XRP settlements on testnet', async t => {
   const portA = await getPort()
   const portB = await getPort()
 
-  // Generate new XRP accounts on testnet
-  const generateAccount = () =>
-    axios
-      .post('https://faucet.altnet.rippletest.net/accounts')
-      .then(({ data }: any) => data.account.secret)
-  const [secretA, secretB] = await Promise.all([generateAccount(), generateAccount()])
-
   // Start sender engine
   const storeA = await connectRedis({ uri: 'redis://127.0.0.1:6379/1' })
-  await startServer(
-    createEngine({
-      xrpSecret: secretA
-    }),
-    storeA,
-    {
-      port: portA,
-      sendMessageUrl: `http://localhost:${portB}` // POST messages directly to the other instance
-    }
-  )
+  const serverA = await startServer(createEngine(), storeA, {
+    port: portA,
+    sendMessageUrl: `http://localhost:${portB}` // POST messages directly to the other instance
+  })
 
   // Start connector mock for handling incoming settlement requests
   const connectorMock = getLocal()
@@ -43,17 +30,11 @@ test('Sends and receives XRP settlements on testnet', async t => {
 
   // Start recipient engine
   const storeB = await connectRedis({ uri: 'redis://127.0.0.1:6379/2' })
-  await startServer(
-    createEngine({
-      xrpSecret: secretB
-    }),
-    storeB,
-    {
-      port: portB,
-      sendMessageUrl: `http://localhost:${portA}`,
-      creditSettlementUrl: connectorMock.urlFor('')
-    }
-  )
+  const serverB = await startServer(createEngine(), storeB, {
+    port: portB,
+    sendMessageUrl: `http://localhost:${portA}`,
+    creditSettlementUrl: connectorMock.urlFor('')
+  })
 
   // Create reciprocal accounts
   await Promise.all([

@@ -3,6 +3,8 @@ import { RequestHandler, Dictionary } from 'express-serve-static-core'
 import { AccountServices, SettlementEngine } from '.'
 import { isSafeKey, SafeKey, SettlementStore } from './store'
 import { fromQuantity, isQuantity } from './utils/quantity'
+import uuid from 'uuid/v4'
+import BigNumber from 'bignumber.js'
 
 const log = debug('settlement-core')
 
@@ -17,65 +19,91 @@ interface AccountParams extends Dictionary<string> {
 }
 
 interface SettlementController {
+  setupAccount: RequestHandler
   validateAccount: RequestHandler
-  isExistingAccount: RequestHandler<AccountParams>
-  setupAccount: RequestHandler<AccountParams>
   settleAccount: RequestHandler<AccountParams>
   handleMessage: RequestHandler<AccountParams>
   deleteAccount: RequestHandler<AccountParams>
 }
 
 export const createController = ({ store, engine, services }: Context): SettlementController => ({
-  validateAccount: (req, res, next) => {
-    return !isSafeKey(req.params.id)
-      ? res.status(400).send('Account ID is missing or includes unsafe characters')
-      : next()
+  setupAccount: async (req, res) => {
+    const accountId = req.body.id || uuid() // Create account ID if none was provided
+    if (!isSafeKey(accountId)) {
+      return res.status(400).send('Account ID includes unsafe characters')
+    }
+
+    try {
+      await store.createAccount(accountId)
+    } catch (err) {
+      log(`Failed to setup account: account=${accountId}`, err)
+      return res.sendStatus(500)
+    }
+
+    if (engine.setup) {
+      try {
+        await engine.setup(accountId) // TODO Is it safe if this is called multiple times?
+      } catch (err) {
+        log(`Failed to setup account: account=${accountId}`, err)
+        return res.sendStatus(500)
+      }
+    }
+
+    res.status(201).send({
+      id: accountId
+    })
   },
 
-  isExistingAccount: async (req, res, next) => {
+  validateAccount: async (req, res, next) => {
     const accountId = req.params.id
+    if (!isSafeKey(accountId)) {
+      return res.status(400).send('Account ID is missing or includes unsafe characters')
+    }
+
     const accountExists = await store.isExistingAccount(accountId)
     return !accountExists ? res.status(404).send(`Account doesn't exist`) : next()
   },
 
-  setupAccount: async (req, res) => {
-    const accountId = req.params.id
-    await store.createAccount(accountId)
-
-    if (engine.setup) {
-      await engine.setup(accountId)
-    }
-
-    res.sendStatus(201)
-  },
-
   settleAccount: async (req, res) => {
     const accountId = req.params.id
+    let details = `account=${accountId}`
 
     const idempotencyKey = req.get('Idempotency-Key')
     if (!isSafeKey(idempotencyKey)) {
-      log('Request to settle failed: invalid idempotency key')
-      return res.status(400).send('Idempotency key is missing or includes unsafe characters')
+      log(`Request to settle failed: idempotency key missing or unsafe: ${details}`)
+      return res.status(400).send('Idempotency key missing or includes unsafe characters')
     }
+
+    details += ` idempotencyKey=${idempotencyKey}`
 
     const requestQuantity = req.body
     if (!isQuantity(requestQuantity)) {
-      log('Request to settle failed: invalid quantity')
+      log(`Request to settle failed: invalid quantity: ${details}`)
       return res.status(400).send('Quantity to settle is invalid')
     }
 
     const amountToQueue = fromQuantity(requestQuantity)
+    details += ` amount=${amountToQueue}`
+
     if (amountToQueue.isZero()) {
-      log('Request to settle failed: amount is 0')
-      return res.status(400).send('Quantity to settle was 0')
+      log(`Request to settle failed: amount is 0: ${details}`)
+      return res.status(400).send('Amount to settle is 0')
     }
 
-    const amountQueued = await store.queueSettlement(accountId, idempotencyKey, amountToQueue)
+    let amountQueued: BigNumber
+    try {
+      amountQueued = await store.queueSettlement(accountId, idempotencyKey, amountToQueue)
+    } catch (err) {
+      log(`Error: Failed to queue settlement: ${details}`, err)
+      return res.sendStatus(500)
+    }
 
     // If the cached amount for that idempotency key is not the same... the client likely sent
     // a request with the same idempotency key, but a different amount
     if (!amountToQueue.isEqualTo(amountQueued)) {
-      log('Request to settle failed: client reused idempotency key with a different amount')
+      log(
+        `Request to settle failed: client reused idempotency key: ${details} previousAmount=${amountQueued}`
+      )
       return res.status(400).send('Idempotency key was reused with a different amount')
     }
 
@@ -88,26 +116,36 @@ export const createController = ({ store, engine, services }: Context): Settleme
   },
 
   handleMessage: async (req, res) => {
+    const accountId = req.params.id
+
     if (!engine.handle) {
+      log(`Received incoming message that settlement engine cannot handle: account=${accountId}`)
       return res.status(400).send('Settlement engine does not support incoming messages')
     }
 
-    const accountId = req.params.id
-    const message = JSON.parse(req.body.toString())
-
-    const response = await engine.handle(accountId, message)
-    const rawResponse = Buffer.from(JSON.stringify(response))
-    res.status(201).send(rawResponse)
+    try {
+      const response = await engine.handle(accountId, req.body)
+      const rawResponse = Buffer.from(JSON.stringify(response))
+      res.status(201).send(rawResponse)
+    } catch (err) {
+      log(`Error while handling message: account=${accountId}`, err)
+      res.sendStatus(500)
+    }
   },
 
   deleteAccount: async (req, res) => {
     const accountId = req.params.id
 
-    if (engine.close) {
-      await engine.close(accountId)
-    }
+    try {
+      if (engine.close) {
+        await engine.close(accountId)
+      }
 
-    await store.deleteAccount(accountId)
-    res.sendStatus(204)
+      await store.deleteAccount(accountId)
+      res.sendStatus(204)
+    } catch (err) {
+      log(`Failed to delete account: account=${accountId}`, err)
+      res.sendStatus(500)
+    }
   }
 })

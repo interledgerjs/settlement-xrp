@@ -33,6 +33,11 @@ type RedisListTxResponse = [[null, string[]], [null, null]]
 export const connectRedis = async ({ client, uri, ...opts }: RedisOpts = {}): Promise<
   SettlementStore
 > => {
+  /**
+   * After a close reading of IORedis, options set by left params supercede
+   * options set by right params (due to the use Lodash _.defaults):
+   * https://github.com/luin/ioredis/blob/1baff479b2abfb1cba73e84ce514b3330b2b0993/lib/redis/index.ts#L193
+   */
   const redis = client ? client : new Redis(uri, opts)
 
   redis.defineCommand('deleteAccount', {

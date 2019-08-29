@@ -3,10 +3,10 @@ import { BigNumber } from 'bignumber.js'
 import bodyParser from 'body-parser'
 import debug from 'debug'
 import express from 'express'
-import { v4 as uuid } from 'uuid'
+import uuid from 'uuid/v4'
 import { createController } from './controllers'
-import { SettlementStore, isSafeKey } from './store'
-import { fromQuantity, isQuantity, isNaturalNumber } from './utils/quantity'
+import { isSafeKey, SettlementStore } from './store'
+import { fromQuantity, isQuantity, isValidAmount } from './utils/quantity'
 import { retryRequest } from './utils/retry'
 
 /**
@@ -100,7 +100,7 @@ export interface SettlementServerConfig {
   connectorUrl?: string
   sendMessageUrl?: string
   creditSettlementUrl?: string
-  port?: number
+  port?: string | number
 }
 
 export interface SettlementServer {
@@ -117,7 +117,7 @@ export const startServer = async (
   const sendMessageUrl = config.sendMessageUrl || connectorUrl
   const creditSettlementUrl = config.creditSettlementUrl || connectorUrl
 
-  const port = config.port || 3000
+  const port = config.port ? +config.port : 3000
 
   // TODO Add DB background task to clear idempotency keys?
 
@@ -153,7 +153,7 @@ export const startServer = async (
         return
       }
 
-      if (!isNaturalNumber(amount)) {
+      if (!isValidAmount(amount)) {
         return log(`Error: Failed to credit settlement, invalid amount: ${details}`)
       }
 
@@ -170,7 +170,7 @@ export const startServer = async (
       const uncreditedAmounts = await store
         .loadAmountToCredit(accountId)
         .then(amount => {
-          if (!isNaturalNumber(amount)) {
+          if (!isValidAmount(amount)) {
             throw new Error('Invalid uncredited amounts, database may be corrupted')
           }
 
@@ -191,8 +191,8 @@ export const startServer = async (
       // ...so this Quantity should always be valid
       const scale = amountToCredit.decimalPlaces()
       const quantityToCredit = {
-        scale,
-        amount: amountToCredit.shiftedBy(scale).toFixed(0) // `toFixed` never resorts to exponential notation
+        scale, // TODO Could this be greater than 255?
+        amount: amountToCredit.shiftedBy(scale).toFixed(0) // `toFixed` always uses normal (not exponential) notation
       }
 
       const notifySettlement = () =>
@@ -231,7 +231,7 @@ export const startServer = async (
       details = `leftover=${leftoverAmount} credited=${amountCredited} amountToCredit=${amountToCredit} account=${accountId} settlementId=${settlementId}`
 
       // Protects against saving `NaN` or `Infinity` to the database
-      if (!isNaturalNumber(leftoverAmount)) {
+      if (!isValidAmount(leftoverAmount)) {
         return log(`Error: Connector credited invalid amount: ${details}`)
       }
 
@@ -264,7 +264,7 @@ export const startServer = async (
       const amountToSettle = await store
         .loadAmountToSettle(accountId)
         .then(queuedAmount => {
-          if (!isNaturalNumber(queuedAmount)) {
+          if (!isValidAmount(queuedAmount)) {
             throw new Error('Invalid queued settlement amounts, database may be corrupted')
           }
 
@@ -287,12 +287,12 @@ export const startServer = async (
       const leftoverAmount = amountToSettle.minus(amountSettled)
       details = `leftover=${leftoverAmount} settled=${amountSettled} amountToSettle=${amountToSettle} account=${accountId}`
 
-      if (!isNaturalNumber(amountSettled)) {
+      if (!isValidAmount(amountSettled)) {
         return log(`Error: Invalid settlement outcome: ${details}`)
       }
 
       // Protects against saving `NaN` or `Infinity` to the database
-      if (!isNaturalNumber(leftoverAmount)) {
+      if (!isValidAmount(leftoverAmount)) {
         return log(`Error: Settled too much: ${details}`)
       }
 
@@ -316,7 +316,6 @@ export const startServer = async (
   const {
     validateAccount,
     setupAccount,
-    isExistingAccount,
     deleteAccount,
     settleAccount,
     handleMessage
@@ -328,26 +327,17 @@ export const startServer = async (
 
   const app = express()
 
-  app.put('/accounts/:id', validateAccount, setupAccount)
-  app.delete('/accounts/:id', validateAccount, isExistingAccount, deleteAccount)
+  app.put('/accounts/:id', setupAccount) // TODO Should the API be POST / with accountId in body? That's how RFC is currently specced
+  app.delete('/accounts/:id', validateAccount, deleteAccount)
+  app.post('/accounts/:id/settlements', bodyParser.json(), validateAccount, settleAccount)
+  app.post('/accounts/:id/messages', bodyParser.json(), validateAccount, handleMessage)
 
-  app.post(
-    '/accounts/:id/settlements',
-    bodyParser.json(),
-    validateAccount,
-    isExistingAccount,
-    settleAccount
-  )
-
-  app.post(
-    '/accounts/:id/messages',
-    bodyParser.raw(),
-    validateAccount,
-    isExistingAccount,
-    handleMessage
-  )
+  // TODO Lookup all accounts with owed settlements and retry them
+  // TODO Lookup all accounts with uncredited settlements and retry them
 
   const server = app.listen(port)
+
+  log('Started settlement engine server')
 
   return {
     async shutdown() {

@@ -37,6 +37,6 @@ export const isQuantity = (o: any): o is Quantity =>
   new BigNumber(o.amount).isInteger() &&
   +o.amount >= 0
 
-/** Is the given BigNumber a positive integer or 0? */
-export const isNaturalNumber = (amount: BigNumber): boolean =>
+/** Is the given BigNumber finite and non-negative (positive or 0)? */
+export const isValidAmount = (amount: BigNumber): boolean =>
   amount.isGreaterThanOrEqualTo(0) && amount.isFinite()

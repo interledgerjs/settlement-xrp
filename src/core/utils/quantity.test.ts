@@ -1,5 +1,5 @@
 import test from 'ava'
-import { isQuantity, isNaturalNumber, fromQuantity, Quantity } from './quantity'
+import { isQuantity, isValidAmount, fromQuantity, Quantity } from './quantity'
 import BigNumber from 'bignumber.js'
 
 test('#fromQuantity -> Correctly converts to decimals', t => {
@@ -170,30 +170,30 @@ IS_QUANTITY_NEGATIVES.forEach(({ input, message }) =>
   })
 )
 
-test('#isNaturalNumber -> True for very large positive numbers', t => {
-  t.true(isNaturalNumber(new BigNumber('134839842444364732')))
+test('#isValidAmount -> True for very large positive numbers', t => {
+  t.true(isValidAmount(new BigNumber('134839842444364732')))
 })
 
-test('#isNaturalNumber -> True for very small positive numbers', t => {
-  t.true(isNaturalNumber(new BigNumber('32.23843824832838489999999e-150')))
+test('#isValidAmount -> True for very small positive numbers', t => {
+  t.true(isValidAmount(new BigNumber('32.23843824832838489999999e-150')))
 })
 
-test('#isNaturalNumber -> True for positive 0', t => {
-  t.true(isNaturalNumber(new BigNumber(0)))
+test('#isValidAmount -> True for positive 0', t => {
+  t.true(isValidAmount(new BigNumber(0)))
 })
 
-test('#isNaturalNumber -> True for negative 0', t => {
-  t.true(isNaturalNumber(new BigNumber('-0')))
+test('#isValidAmount -> True for negative 0', t => {
+  t.true(isValidAmount(new BigNumber('-0')))
 })
 
-test('#isNaturalNumber -> False for Infinity', t => {
-  t.false(isNaturalNumber(new BigNumber(Infinity)))
+test('#isValidAmount -> False for Infinity', t => {
+  t.false(isValidAmount(new BigNumber(Infinity)))
 })
 
-test('#isNaturalNumber -> False for NaN', t => {
-  t.false(isNaturalNumber(new BigNumber(NaN)))
+test('#isValidAmount -> False for NaN', t => {
+  t.false(isValidAmount(new BigNumber(NaN)))
 })
 
-test('#isNaturalNumber -> False for negative numbers', t => {
-  t.false(isNaturalNumber(new BigNumber('-3248')))
+test('#isValidAmount -> False for negative numbers', t => {
+  t.false(isValidAmount(new BigNumber('-3248')))
 })

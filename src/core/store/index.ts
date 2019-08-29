@@ -10,11 +10,12 @@ export const isSafeKey = (o: any): o is SafeKey =>
 
 export interface SettlementStore {
   /**
-   * Create a new account
+   * Create an account with the given ID
    *
    * @param accountId Unique account identifier
+   * @return Did the account already exist?
    */
-  createAccount(accountId: SafeKey): Promise<void>
+  createAccount(accountId: SafeKey): Promise<boolean>
 
   /**
    * Has the given account been instantiated via a call from the connector?

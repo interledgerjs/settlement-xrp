@@ -327,7 +327,7 @@ export const startServer = async (
 
   const app = express()
 
-  app.put('/accounts/:id', setupAccount) // TODO Should the API be POST / with accountId in body? That's how RFC is currently specced
+  app.post('/accounts', setupAccount)
   app.delete('/accounts/:id', validateAccount, deleteAccount)
   app.post('/accounts/:id/settlements', bodyParser.json(), validateAccount, settleAccount)
   app.post('/accounts/:id/messages', bodyParser.json(), validateAccount, handleMessage)
@@ -336,7 +336,6 @@ export const startServer = async (
   // TODO Lookup all accounts with uncredited settlements and retry them
 
   const server = app.listen(port)
-
   log('Started settlement engine server')
 
   return {

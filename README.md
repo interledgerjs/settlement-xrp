@@ -1,33 +1,32 @@
 # XRP On-Ledger Settlement Engine
 
-## Build
+> Settle Interledger payments using on-ledger XRP transfers
 
-To build this engine, issue the following command:
+## Install
 
 ```bash
-npm install && npm run build && npm link
+npm i -g ilp-settlement-xrp
+```
+
+## Run
+
+```bash
+DEBUG=settlement* ilp-settlement-xrp
 ```
 
 ## Configuration
 
-This settlement engine provides for the following configurable settings:
+Optionally configure the settlement engine using these environment variables:
 
-- **LEDGER_SECRET**: The XRP Ledger secret to use to send outgoing payments and corresponding to the XRP account for receiving incoming payments. DEFAULT: `sahVoeg97nuitefnzL9GHjp2Z6kpj`
-
-- **CONNECTOR_URL**: The base HTTP URL that this settlement engine can make API calls to in order to communicate with the Connector account this engine is operating on behalf of. DEFAULT: `http://localhost:7771`
-
-- **ENGINE_PORT**: Port of the server the settlement engine exposes for the connector. DEFAULT: `3000`
-
-- **REDIS_URI**: URI to communicate with Redis. DEFAULT: `127.0.0.1:6379`
-
-## Operation
-
-To run this Settlement Engine, issue the following command:
-
-```bash
-LEDGER_SECRET=sahVoeg97nuitefnzL9GHjp2Z6kpj node ./build/run
-```
-
-## Roadmap
-
-- [ ] Add integration tests
+- **`LEDGER_SECRET`**: The XRP Ledger secret to send outgoing payments and corresponding to the XRP account for receiving incoming payments.
+  - By default, a new [XRP testnet account](https://xrpl.org/xrp-test-net-faucet.html) is automatically generated with 10,000 testnet XRP.
+- **`RIPPLED_URI`**: Rippled WebSocket or JSON-RPC endpoint to submit transactions and query network state.
+  - Defaults to the Ripple testnet: `wss://s.altnet.rippletest.net:51233`. To operate on mainnet, specify a mainnet validator, such as `wss://s1.ripple.com`.
+- **`CONNECTOR_URL`**: The base URL of the connector operating this settlement engine for performing accounting and sending messages.
+  - Default: `http://localhost:7771`
+- **`ENGINE_PORT`**: Port of the settlement engine server exposed to the connector (e.g. for triggering automated settlements).
+  - Default: `3000`
+- **`REDIS_URI`**: URI to communicate with Redis, typically in the format `redis://[:PASSWORD@]HOST[:PORT][/DATABASE]`.
+  - Default: `127.0.0.1:6379/1` (database index of 1 instead of 0)
+  - Note: this settlement engine **must** use a unique Redis database index (or dedicated Redis instance) for security to prevent conflicting with the connector.
+- **`DEBUG`**: Pattern for printing debug logs. To view logs, `settlement*` is recommended.

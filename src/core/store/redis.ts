@@ -71,7 +71,7 @@ export const connectRedis = async ({ client, uri, ...opts }: RedisOpts = {}): Pr
 
   const self: SettlementStore = {
     async createAccount(accountId) {
-      return (await redis.sadd('accounts', accountId)) === 0 // Returns number of elements added to set
+      return (await redis.sadd('accounts', accountId)) === 0 // SADD returns number of elements added to set
     },
 
     async isExistingAccount(accountId) {

@@ -327,10 +327,11 @@ export const startServer = async (
 
   const app = express()
 
+  app.use(bodyParser.json())
   app.post('/accounts', setupAccount)
   app.delete('/accounts/:id', validateAccount, deleteAccount)
-  app.post('/accounts/:id/settlements', bodyParser.json(), validateAccount, settleAccount)
-  app.post('/accounts/:id/messages', bodyParser.json(), validateAccount, handleMessage)
+  app.post('/accounts/:id/settlements', validateAccount, settleAccount)
+  app.post('/accounts/:id/messages', validateAccount, handleMessage)
 
   // TODO Lookup all accounts with owed settlements and retry them
   // TODO Lookup all accounts with uncredited settlements and retry them

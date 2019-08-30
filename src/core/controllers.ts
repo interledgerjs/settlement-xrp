@@ -33,6 +33,11 @@ export const createController = ({ store, engine, services }: Context): Settleme
       return res.status(400).send('Account ID includes unsafe characters')
     }
 
+    /**
+     * TODO Before creating the accout/calling setup, ensure the peer is reachable:
+     * Try pinging them and await either a response or a ping from said peer
+     */
+
     try {
       await store.createAccount(accountId)
     } catch (err) {

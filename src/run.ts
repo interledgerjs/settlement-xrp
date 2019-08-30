@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { connectRedis } from './core/store/redis'
 import { startServer } from './core'
 import { createEngine } from '.'

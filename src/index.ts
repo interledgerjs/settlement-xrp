@@ -191,8 +191,9 @@ export const generateTestnetAccount = async () =>
     .post('https://faucet.altnet.rippletest.net/accounts')
     .then(({ data }: AxiosResponse<RippleTestnetResponse>) => {
       if (data && data.account) {
-        log(`Generated new XRP testnet account: address=${data.account.address}`)
-        return data.account.secret
+        const { secret, address } = data.account
+        log(`Generated new XRP testnet account: address=${address} secret=${secret}`)
+        return secret
       }
 
       throw new Error('Failed to generate new XRP testnet account')

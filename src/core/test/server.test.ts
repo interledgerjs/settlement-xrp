@@ -6,7 +6,7 @@ import { startServer, SettlementServer, ConnectSettlementEngine } from '..'
 import sinon, { SinonSpy } from 'sinon'
 import axios, { AxiosError } from 'axios'
 import { SettlementStore } from '../store'
-import { v4 as uuid } from 'uuid'
+import uuid from 'uuid/v4'
 import getPort from 'get-port'
 
 // const RedisMock = require('ioredis-mock') // TODO Add types for this!

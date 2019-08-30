@@ -10,12 +10,7 @@
     "declaration": true,
     "removeComments": true,
     "strict": true /* Enable all strict type-checking options. */,
-    "esModuleInterop": true,
-    "typeRoots": ["node_modules/@types", "src/types"],
-    "paths": {
-      "ripple-keypairs": ["./types/ripple-keypairs"]
-    }
+    "esModuleInterop": true
   },
   "include": ["src/**/*"]
-  // "exclude": ["test/**/*.ts"]
 }

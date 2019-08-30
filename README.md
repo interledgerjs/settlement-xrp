@@ -2,6 +2,12 @@
 
 > Settle Interledger payments using on-ledger XRP transfers
 
+[![NPM Package](https://img.shields.io/npm/v/ilp-settlement-xrp.svg?style=flat-square&logo=npm)](https://npmjs.org/package/ilp-settlement-xrp)
+[![CircleCI](https://img.shields.io/circleci/project/github/interledgerjs/settlement-xrp/master.svg?style=flat-square&logo=circleci)](https://circleci.com/gh/interledgerjs/settlement-xrp/master)
+[![Codecov](https://img.shields.io/codecov/c/github/interledgerjs/settlement-xrp/master.svg?style=flat-square&logo=codecov)](https://codecov.io/gh/interledgerjs/settlement-xrp)
+[![Prettier](https://img.shields.io/badge/code_style-prettier-brightgreen.svg?style=flat-square)](https://prettier.io/)
+[![Apache 2.0 License](https://img.shields.io/github/license/interledgerjs/settlement-xrp.svg?style=flat-square)](https://github.com/interledgerjs/settlement-xrp/blob/master/LICENSE)
+
 ## Install
 
 ```bash

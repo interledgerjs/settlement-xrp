@@ -20,7 +20,7 @@ export interface SettlementEngine {
    *
    * @param accountId Unique account identifier
    */
-  setup?(accountId: string): Promise<void>
+  setupAccount?(accountId: string): Promise<void>
 
   /**
    * Send a settlement to the peer for up to the given amount
@@ -44,7 +44,7 @@ export interface SettlementEngine {
    * @param message Parsed JSON message from peer
    * @return Response message, to be serialized as JSON
    */
-  handle?(accountId: string, message: any): Promise<any>
+  handleMessage?(accountId: string, message: any): Promise<any>
 
   /**
    * Delete or close the given account
@@ -52,7 +52,7 @@ export interface SettlementEngine {
    *
    * @param accountId Unique account identifier
    */
-  close?(accountId: string): Promise<void>
+  closeAccount?(accountId: string): Promise<void>
 
   /**
    * Disconnect the settlement engine
@@ -92,7 +92,9 @@ export interface AccountServices {
 }
 
 /** Connect and instantiate the settlement engine */
-export type ConnectSettlementEngine = (services: AccountServices) => Promise<SettlementEngine>
+export type ConnectSettlementEngine<TEngine extends SettlementEngine> = (
+  services: AccountServices
+) => Promise<TEngine>
 
 const log = debug('settlement-core')
 
@@ -104,11 +106,14 @@ export interface SettlementServerConfig {
 }
 
 export interface SettlementServer {
+  engine: SettlementEngine
+
+  /** TODO document */
   shutdown(): Promise<void>
 }
 
-export const startServer = async (
-  createEngine: ConnectSettlementEngine,
+export const startServer = async <TEngine extends SettlementEngine>(
+  createEngine: ConnectSettlementEngine<TEngine>,
   store: SettlementStore,
   config: SettlementServerConfig = {}
 ): Promise<SettlementServer> => {
@@ -118,8 +123,6 @@ export const startServer = async (
   const creditSettlementUrl = config.creditSettlementUrl || connectorUrl
 
   const port = config.port ? +config.port : 3000
-
-  // TODO Add DB background task to clear idempotency keys?
 
   // Create the context passed to the settlement engine
   const services: AccountServices = {
@@ -143,8 +146,6 @@ export const startServer = async (
         })
         .then(response => response.data)
     },
-
-    // TODO Should this save the outgoing idempotency key to the DB with request state so it may be retried (and not lost)?
 
     creditSettlement: async (accountId, amount, settlementId = uuid()) => {
       let details = `amountToCredit=${amount} account=${accountId} settlementId=${settlementId}`
@@ -191,7 +192,7 @@ export const startServer = async (
       // ...so this Quantity should always be valid
       const scale = amountToCredit.decimalPlaces()
       const quantityToCredit = {
-        scale, // TODO Could this be greater than 255?
+        scale,
         amount: amountToCredit.shiftedBy(scale).toFixed(0) // `toFixed` always uses normal (not exponential) notation
       }
 
@@ -327,11 +328,10 @@ export const startServer = async (
 
   const app = express()
 
-  app.use(bodyParser.json())
-  app.post('/accounts', setupAccount)
+  app.post('/accounts', bodyParser.json(), setupAccount)
   app.delete('/accounts/:id', validateAccount, deleteAccount)
-  app.post('/accounts/:id/settlements', validateAccount, settleAccount)
-  app.post('/accounts/:id/messages', validateAccount, handleMessage)
+  app.post('/accounts/:id/settlements', bodyParser.json(), validateAccount, settleAccount)
+  app.post('/accounts/:id/messages', bodyParser.raw(), validateAccount, handleMessage)
 
   // TODO Lookup all accounts with owed settlements and retry them
   // TODO Lookup all accounts with uncredited settlements and retry them
@@ -340,6 +340,8 @@ export const startServer = async (
   log('Started settlement engine server')
 
   return {
+    engine,
+
     async shutdown() {
       await new Promise(resolve => server.close(resolve))
 

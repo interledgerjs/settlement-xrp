@@ -4,13 +4,13 @@ import { createEngine } from '.'
 
 async function run() {
   const engine = createEngine({
-    xrpSecret: process.env.LEDGER_SECRET,
+    xrpSecret: process.env.XRP_SECRET,
     rippledUri: process.env.RIPPLED_URI
   })
 
   const store = await connectRedis({
     uri: process.env.REDIS_URI,
-    db: 1
+    db: 1 // URI will override this
   })
 
   const { shutdown } = await startServer(engine, store, {

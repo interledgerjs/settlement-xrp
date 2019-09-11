@@ -1,12 +1,15 @@
+import axios, { AxiosResponse } from 'axios'
 import BigNumber from 'bignumber.js'
 import { randomBytes } from 'crypto'
 import debug from 'debug'
 import { deriveAddress, deriveKeypair } from 'ripple-keypairs'
 import { RippleAPI } from 'ripple-lib'
 import { ConnectSettlementEngine, SettlementEngine } from './core'
-import axios, { AxiosResponse } from 'axios'
+import { sleep } from './core/utils/retry'
 
 const log = debug('settlement-xrp')
+
+export const TESTNET_RIPPLED_URI = 'wss://s.altnet.rippletest.net:51233'
 
 export interface XrpEngineOpts {
   xrpSecret?: string
@@ -15,26 +18,27 @@ export interface XrpEngineOpts {
 }
 
 export interface XrpSettlementEngine extends SettlementEngine {
+  handleMessage(accountId: string, message: any): Promise<any>
   handleTransaction(tx: any): void
+  disconnect(): Promise<void>
 }
 
-export const createEngine = (opts: XrpEngineOpts = {}): ConnectSettlementEngine => async ({
-  sendMessage,
-  creditSettlement
-}) => {
+export const createEngine = (
+  opts: XrpEngineOpts = {}
+): ConnectSettlementEngine<XrpSettlementEngine> => async ({ sendMessage, creditSettlement }) => {
   const xrpSecret = opts.xrpSecret || (await generateTestnetAccount())
-  const xrpAddress = deriveAddress(deriveKeypair(xrpSecret).publicKey)
+  const xrpAddress = secretToAddress(xrpSecret)
 
   const rippleClient: RippleAPI =
     opts.rippleClient ||
     new RippleAPI({
-      server: opts.rippledUri || 'wss://s.altnet.rippletest.net:51233'
+      server: opts.rippledUri || TESTNET_RIPPLED_URI
     })
 
   const incomingPaymentTags = new Map<number, string>() // destinationTag -> accountId
 
   const self: XrpSettlementEngine = {
-    async handle(accountId, message) {
+    async handleMessage(accountId, message) {
       if (message.type && message.type === 'paymentDetails') {
         const destinationTag = randomBytes(4).readUInt32BE(0)
         if (incomingPaymentTags.has(destinationTag)) {
@@ -99,7 +103,7 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectSettlementEngine 
       }
 
       /**
-       * TODO Should this check if the transaction succeeded?
+       * TODO Should this check if the transaction succeeded/for final outcome?
        *
        * Per https://developers.ripple.com/get-started-with-rippleapi-for-javascript.html:
        * "The tentative result should be ignored. Transactions that succeed here can ultimately fail,
@@ -172,7 +176,7 @@ interface PaymentDetails {
 
 const MAX_UINT_32 = 4294967295
 
-const isPaymentDetails = (o: any): o is PaymentDetails =>
+export const isPaymentDetails = (o: any): o is PaymentDetails =>
   typeof o === 'object' &&
   typeof o.xrpAddress === 'string' &&
   Number.isInteger(o.destinationTag) &&
@@ -186,12 +190,19 @@ interface RippleTestnetResponse {
   }
 }
 
+export const secretToAddress = (xrpSecret: string) =>
+  deriveAddress(deriveKeypair(xrpSecret).publicKey)
+
 export const generateTestnetAccount = async () =>
   axios
     .post('https://faucet.altnet.rippletest.net/accounts')
-    .then(({ data }: AxiosResponse<RippleTestnetResponse>) => {
+    .then(async ({ data }: AxiosResponse<RippleTestnetResponse>) => {
       if (data && data.account) {
         const { secret, address } = data.account
+
+        // Wait for it to be included in a block
+        await sleep(5000)
+
         log(`Generated new XRP testnet account: address=${address} secret=${secret}`)
         return secret
       }

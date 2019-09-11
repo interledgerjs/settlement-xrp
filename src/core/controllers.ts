@@ -45,9 +45,9 @@ export const createController = ({ store, engine, services }: Context): Settleme
       return res.sendStatus(500)
     }
 
-    if (engine.setup) {
+    if (engine.setupAccount) {
       try {
-        await engine.setup(accountId) // TODO Is it safe if this is called multiple times?
+        await engine.setupAccount(accountId) // TODO Is it safe if this is called multiple times?
       } catch (err) {
         log(`Failed to setup account: account=${accountId}`, err)
         return res.sendStatus(500)
@@ -123,13 +123,13 @@ export const createController = ({ store, engine, services }: Context): Settleme
   handleMessage: async (req, res) => {
     const accountId = req.params.id
 
-    if (!engine.handle) {
+    if (!engine.handleMessage) {
       log(`Received incoming message that settlement engine cannot handle: account=${accountId}`)
       return res.status(400).send('Settlement engine does not support incoming messages')
     }
 
     try {
-      const response = await engine.handle(accountId, req.body)
+      const response = await engine.handleMessage(accountId, JSON.parse(req.body))
       const rawResponse = Buffer.from(JSON.stringify(response))
       res.status(201).send(rawResponse)
     } catch (err) {
@@ -142,8 +142,8 @@ export const createController = ({ store, engine, services }: Context): Settleme
     const accountId = req.params.id
 
     try {
-      if (engine.close) {
-        await engine.close(accountId)
+      if (engine.closeAccount) {
+        await engine.closeAccount(accountId)
       }
 
       await store.deleteAccount(accountId)

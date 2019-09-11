@@ -24,11 +24,12 @@ DEBUG=settlement* ilp-settlement-xrp
 
 Optionally configure the settlement engine using these environment variables:
 
-- **`LEDGER_SECRET`**: The XRP Ledger secret to send outgoing payments and corresponding to the XRP account for receiving incoming payments.
-  - By default, a new [XRP testnet account](https://xrpl.org/xrp-test-net-faucet.html) is automatically generated with 10,000 testnet XRP.
+- **`XRP_SECRET`**: The XRP Ledger secret to send outgoing payments and corresponding to the XRP account for receiving incoming payments.
+  - By default, a new [XRP testnet account](https://xrpl.org/xrp-test-net-faucet.html) is automatically generated with 1,000 testnet XRP.
 - **`RIPPLED_URI`**: Rippled WebSocket or JSON-RPC endpoint to submit transactions and query network state.
   - Defaults to the Ripple testnet: `wss://s.altnet.rippletest.net:51233`. To operate on mainnet, specify a mainnet validator, such as `wss://s1.ripple.com`.
 - **`CONNECTOR_URL`**: The base URL of the connector operating this settlement engine for performing accounting and sending messages.
+  - TODO expalin that the connector runs a separate server for interaction with SE
   - Default: `http://localhost:7771`
 - **`ENGINE_PORT`**: Port of the settlement engine server exposed to the connector (e.g. for triggering automated settlements).
   - Default: `3000`

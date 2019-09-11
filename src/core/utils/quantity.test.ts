@@ -1,47 +1,46 @@
-import test from 'ava'
 import { isQuantity, isValidAmount, fromQuantity, Quantity } from './quantity'
 import BigNumber from 'bignumber.js'
 
-test('#fromQuantity -> Correctly converts to decimals', t => {
-  t.deepEqual(
-    fromQuantity({
-      amount: '4',
-      scale: 3
-    } as Quantity),
-    new BigNumber(0.004)
-  )
+describe('#fromQuantity', () => {
+  test('Correctly converts to decimals', () => {
+    expect(
+      fromQuantity({
+        amount: '4',
+        scale: 3
+      } as Quantity)
+    ).toStrictEqual(new BigNumber(0.004))
 
-  t.deepEqual(
-    fromQuantity({
-      amount: '2387493254398563574732428183413479237',
-      scale: 255
-    } as Quantity),
-    new BigNumber(
-      '0.000000000000000000000000000000000000000000000000000' +
-        '00000000000000000000000000000000000000000000000000000' +
-        '00000000000000000000000000000000000000000000000000000' +
-        '00000000000000000000000000000000000000000000000000000' +
-        '000000002387493254398563574732428183413479237'
+    expect(
+      fromQuantity({
+        amount: '2387493254398563574732428183413479237',
+        scale: 255
+      } as Quantity)
+    ).toStrictEqual(
+      new BigNumber(
+        '0.000000000000000000000000000000000000000000000000000' +
+          '00000000000000000000000000000000000000000000000000000' +
+          '00000000000000000000000000000000000000000000000000000' +
+          '00000000000000000000000000000000000000000000000000000' +
+          '000000002387493254398563574732428183413479237'
+      )
     )
-  )
-})
+  })
 
-test('#fromQuantity -> Correctly converts to rational numbers greater than 1', t => {
-  t.deepEqual(
-    fromQuantity({
-      amount: '478',
-      scale: 0
-    } as Quantity),
-    new BigNumber('478')
-  )
+  test('Correctly converts to rational numbers greater than 1', () => {
+    expect(
+      fromQuantity({
+        amount: '478',
+        scale: 0
+      } as Quantity)
+    ).toStrictEqual(new BigNumber('478'))
 
-  t.deepEqual(
-    fromQuantity({
-      amount: '468298498328921232438908568999396',
-      scale: 18
-    } as Quantity),
-    new BigNumber('468298498328921.232438908568999396')
-  )
+    expect(
+      fromQuantity({
+        amount: '468298498328921232438908568999396',
+        scale: 18
+      } as Quantity)
+    ).toStrictEqual(new BigNumber('468298498328921.232438908568999396'))
+  })
 })
 
 const IS_QUANTITY_POSITIVES = [
@@ -75,11 +74,11 @@ const IS_QUANTITY_POSITIVES = [
   }
 ]
 
-IS_QUANTITY_POSITIVES.forEach(({ input, message }) =>
-  test(`#isQuantity -> ${message}`, t => {
-    t.true(isQuantity(input))
-  })
-)
+describe('#isQuantity', () => {
+  IS_QUANTITY_POSITIVES.forEach(({ input, message }) =>
+    test(message, () => expect(isQuantity(input)).toBe(true))
+  )
+})
 
 const IS_QUANTITY_NEGATIVES = [
   {
@@ -164,36 +163,38 @@ const IS_QUANTITY_NEGATIVES = [
   }
 ]
 
-IS_QUANTITY_NEGATIVES.forEach(({ input, message }) =>
-  test(`#isQuantity -> ${message}`, t => {
-    t.false(isQuantity(input))
+describe('#isQuantity', () => {
+  IS_QUANTITY_NEGATIVES.forEach(({ input, message }) =>
+    test(message, () => expect(isQuantity(input)).toBe(false))
+  )
+})
+
+describe('#isValidAmount', () => {
+  test('True for very large positive numbers', () => {
+    expect(isValidAmount(new BigNumber('134839842444364732'))).toBe(true)
   })
-)
 
-test('#isValidAmount -> True for very large positive numbers', t => {
-  t.true(isValidAmount(new BigNumber('134839842444364732')))
-})
+  test('True for very small positive numbers', () => {
+    expect(isValidAmount(new BigNumber('32.23843824832838489999999e-150'))).toBe(true)
+  })
 
-test('#isValidAmount -> True for very small positive numbers', t => {
-  t.true(isValidAmount(new BigNumber('32.23843824832838489999999e-150')))
-})
+  test('True for positive 0', () => {
+    expect(isValidAmount(new BigNumber(0))).toBe(true)
+  })
 
-test('#isValidAmount -> True for positive 0', t => {
-  t.true(isValidAmount(new BigNumber(0)))
-})
+  test('True for negative 0', () => {
+    expect(isValidAmount(new BigNumber('-0'))).toBe(true)
+  })
 
-test('#isValidAmount -> True for negative 0', t => {
-  t.true(isValidAmount(new BigNumber('-0')))
-})
+  test('False for Infinity', () => {
+    expect(isValidAmount(new BigNumber(Infinity))).toBe(false)
+  })
 
-test('#isValidAmount -> False for Infinity', t => {
-  t.false(isValidAmount(new BigNumber(Infinity)))
-})
+  test('False for NaN', () => {
+    expect(isValidAmount(new BigNumber(NaN))).toBe(false)
+  })
 
-test('#isValidAmount -> False for NaN', t => {
-  t.false(isValidAmount(new BigNumber(NaN)))
-})
-
-test('#isValidAmount -> False for negative numbers', t => {
-  t.false(isValidAmount(new BigNumber('-3248')))
+  test('False for negative numbers', () => {
+    expect(isValidAmount(new BigNumber('-3248'))).toBe(false)
+  })
 })

@@ -30,6 +30,8 @@ export interface RedisOpts extends Redis.RedisOptions {
 
 type RedisListTxResponse = [[null, string[]], [null, null]]
 
+// TODO Should this define a more specific "RedisSettlementStore" type?
+
 export const connectRedis = async ({ client, uri, ...opts }: RedisOpts = {}): Promise<
   SettlementStore
 > => {

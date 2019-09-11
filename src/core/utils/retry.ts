@@ -5,10 +5,11 @@ import { promisify } from 'util'
 const log = debug('settlement-core')
 
 /** Wait and resolve after the given number of milliseconds */
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 /** Generate a floating-point, pseudo-random number in the range [0, 1) */
-const generateRandom = async () => (await promisify(randomBytes)(4)).readUInt32BE(0) / 4294967296
+export const generateRandom = async () =>
+  (await promisify(randomBytes)(4)).readUInt32BE(0) / 4294967296
 
 const RETRY_MAX_ATTEMPTS = 16
 const RETRY_MIN_DELAY_MS = 100

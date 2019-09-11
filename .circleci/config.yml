@@ -31,7 +31,11 @@ jobs:
 
       - run:
           name: Lint
-          command: npm run lint
+          command: npm run lint:check
+
+      - run:
+          name: Format
+          command: npm run format:check
 
       - run:
           name: Build

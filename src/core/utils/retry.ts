@@ -11,9 +11,8 @@ export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 export const generateRandom = async () =>
   (await promisify(randomBytes)(4)).readUInt32BE(0) / 4294967296
 
-const RETRY_MAX_ATTEMPTS = 16
 const RETRY_MIN_DELAY_MS = 100
-const RETRY_MAX_DELAY_MS = 1000 * 60 * 10 // 10 minutes
+const RETRY_MAX_DELAY_MS = 1000 * 60 * 60 // 1 hour
 
 /**
  * Retry the given request with an exponential backoff as retry-able errors are encountered
@@ -30,10 +29,6 @@ export const retryRequest = <T>(performRequest: () => Promise<T>, attempt = 1): 
       throw err
     }
 
-    if (attempt >= RETRY_MAX_ATTEMPTS) {
-      throw new Error(`retried maximum of ${RETRY_MAX_ATTEMPTS} attempts`)
-    }
-
     /**
      * Adaptation of backoff algorithm from Stripe:
      * https://github.com/stripe/stripe-ruby/blob/1bb9ac48b916b1c60591795cdb7ba6d18495e82d/lib/stripe/stripe_client.rb#L78-L92
@@ -43,7 +38,7 @@ export const retryRequest = <T>(performRequest: () => Promise<T>, attempt = 1): 
     delayMs = delayMs * (0.5 * (1 + (await generateRandom()))) // Add random "jitter" to delay (thundering herd problem)
     delayMs = Math.max(RETRY_MIN_DELAY_MS, delayMs)
 
-    log(`Retrying HTTP request in ${Math.floor(delayMs / 1000)} seconds:`, err.message) // Axios error objects are HUGE
+    log(`Retrying HTTP request in ${Math.floor(delayMs / 1000)} seconds:`, err.message) // Don't log Axios error objects...they're HUGE
     await sleep(delayMs)
     return retryRequest(performRequest, attempt + 1)
   })

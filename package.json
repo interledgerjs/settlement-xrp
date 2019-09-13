@@ -5,12 +5,12 @@
   },
   "version": "1.0.0",
   "description": "Settle Interledger payments using on-ledger XRP transfers",
-  "main": "build/index.js",
-  "types": "build/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "bin",
-    "build",
-    "build/**/*.test.js"
+    "dist",
+    "dist/**/*.test.js"
   ],
   "publishConfig": {
     "access": "public"

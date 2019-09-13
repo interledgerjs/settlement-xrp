@@ -10,8 +10,8 @@ import { fromQuantity, isQuantity, isValidAmount } from './utils/quantity'
 import { retryRequest } from './utils/retry'
 
 /**
- * Settlement system -specific functionality that each settlement engine
- * implementation must implement in order to send and receive payments with peers
+ * Essential functionality to send and receive payments with peers
+ * that every settlement engine must provide
  */
 export interface SettlementEngine {
   /**
@@ -92,9 +92,7 @@ export interface AccountServices {
 }
 
 /** Connect and instantiate the settlement engine */
-export type ConnectSettlementEngine<TEngine extends SettlementEngine> = (
-  services: AccountServices
-) => Promise<TEngine>
+export type ConnectSettlementEngine = (services: AccountServices) => Promise<SettlementEngine>
 
 const log = debug('settlement-core')
 
@@ -106,14 +104,12 @@ export interface SettlementServerConfig {
 }
 
 export interface SettlementServer {
-  engine: SettlementEngine
-
-  /** TODO document */
+  /** Stop the server interacting with the connector and disconnect the settlement engine */
   shutdown(): Promise<void>
 }
 
-export const startServer = async <TEngine extends SettlementEngine>(
-  createEngine: ConnectSettlementEngine<TEngine>,
+export const startServer = async (
+  createEngine: ConnectSettlementEngine,
   store: SettlementStore,
   config: SettlementServerConfig = {}
 ): Promise<SettlementServer> => {
@@ -340,8 +336,6 @@ export const startServer = async <TEngine extends SettlementEngine>(
   log('Started settlement engine server')
 
   return {
-    engine,
-
     async shutdown() {
       await new Promise(resolve => server.close(resolve))
 

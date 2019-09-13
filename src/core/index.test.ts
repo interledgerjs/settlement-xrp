@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { startServer, ConnectSettlementEngine, SettlementEngine } from '.'
+import { startServer, ConnectSettlementEngine } from '.'
 import { createMemoryStore } from './store/memory'
 import BigNumber from 'bignumber.js'
 import uuid from 'uuid/v4'
@@ -18,7 +18,7 @@ const prepareSettlementEngine = async () => {
   const settleMock = jest.fn()
   settleMock.mockImplementation(async (accountId: string, amount: BigNumber) => amount)
 
-  const createEngine: ConnectSettlementEngine<SettlementEngine> = async () => ({
+  const createEngine: ConnectSettlementEngine = async () => ({
     settle: settleMock
   })
 

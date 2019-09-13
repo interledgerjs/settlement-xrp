@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto'
 import debug from 'debug'
 import { deriveAddress, deriveKeypair } from 'ripple-keypairs'
 import { RippleAPI } from 'ripple-lib'
-import { ConnectSettlementEngine, SettlementEngine } from './core'
+import { SettlementEngine, AccountServices } from './core'
 import { sleep } from './core/utils/retry'
 
 const log = debug('settlement-xrp')
@@ -23,9 +23,12 @@ export interface XrpSettlementEngine extends SettlementEngine {
   disconnect(): Promise<void>
 }
 
-export const createEngine = (
-  opts: XrpEngineOpts = {}
-): ConnectSettlementEngine<XrpSettlementEngine> => async ({ sendMessage, creditSettlement }) => {
+export type ConnectXrpSettlementEngine = (services: AccountServices) => Promise<XrpSettlementEngine>
+
+export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngine => async ({
+  sendMessage,
+  creditSettlement
+}) => {
   const xrpSecret = opts.xrpSecret || (await generateTestnetAccount())
   const xrpAddress = secretToAddress(xrpSecret)
 

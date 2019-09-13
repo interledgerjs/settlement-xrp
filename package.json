@@ -10,7 +10,7 @@
   "files": [
     "bin",
     "dist",
-    "dist/**/*.test.js"
+    "!dist/**/*.test.js"
   ],
   "publishConfig": {
     "access": "public"

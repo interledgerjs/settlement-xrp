@@ -6,7 +6,6 @@ import {
   generateTestnetAccount,
   secretToAddress
 } from '.'
-import { sleep } from './core/utils/retry'
 
 test.concurrent(
   'Sends and receives XRP settlements on testnet',
@@ -36,7 +35,7 @@ test.concurrent(
 
     while (true) {
       if (contextB.creditSettlement.mock.calls.length < 1) {
-        await sleep(100)
+        await new Promise(r => setTimeout(r, 100))
         continue
       }
 
@@ -186,7 +185,7 @@ test.concurrent(
   20000
 )
 
-test.todo('Incoming payment tags are purged after 5 minutes') // TODO this seems hard
+test.todo('Incoming payment tags are purged after 5 minutes')
 
 test.todo('Each payment is only credited to one account')
 

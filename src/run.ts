@@ -1,5 +1,4 @@
-import { connectRedis } from './core/store/redis'
-import { startServer } from './core'
+import { startServer, connectRedis } from 'ilp-settlement-core'
 import { createEngine } from '.'
 
 async function run() {

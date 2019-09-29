@@ -4,8 +4,7 @@ import { randomBytes } from 'crypto'
 import debug from 'debug'
 import { deriveAddress, deriveKeypair } from 'ripple-keypairs'
 import { RippleAPI } from 'ripple-lib'
-import { SettlementEngine, AccountServices } from './core'
-import { sleep } from './core/utils/retry'
+import { SettlementEngine, AccountServices } from 'ilp-settlement-core'
 
 const log = debug('settlement-xrp')
 
@@ -39,6 +38,7 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
     })
 
   const incomingPaymentTags = new Map<number, string>() // destinationTag -> accountId
+  const pendingTimers = new Set<NodeJS.Timeout>() // Set of timeout IDs to cleanup when exiting
 
   const self: XrpSettlementEngine = {
     async handleMessage(accountId, message) {
@@ -49,7 +49,9 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
         }
 
         incomingPaymentTags.set(destinationTag, accountId)
-        setTimeout(() => incomingPaymentTags.delete(destinationTag), 5 * 60000) // Clean-up tags after 5 mins to prevent memory leak
+
+        // Clean-up tags after 5 mins to prevent memory leak
+        pendingTimers.add(setTimeout(() => incomingPaymentTags.delete(destinationTag), 5 * 60000))
 
         return {
           destinationTag,
@@ -158,6 +160,8 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
     },
 
     async disconnect() {
+      pendingTimers.forEach(timer => clearTimeout(timer))
+
       await rippleClient.disconnect()
     }
   }
@@ -204,7 +208,7 @@ export const generateTestnetAccount = async () =>
         const { secret, address } = data.account
 
         // Wait for it to be included in a block
-        await sleep(5000)
+        await new Promise(r => setTimeout(r, 5000))
 
         log(`Generated new XRP testnet account: address=${address} secret=${secret}`)
         return secret

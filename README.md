@@ -28,8 +28,7 @@ Optionally configure the settlement engine using these environment variables:
   - By default, a new [XRP testnet account](https://xrpl.org/xrp-test-net-faucet.html) is automatically generated with 1,000 testnet XRP.
 - **`RIPPLED_URI`**: Rippled WebSocket or JSON-RPC endpoint to submit transactions and query network state.
   - Defaults to the Ripple testnet: `wss://s.altnet.rippletest.net:51233`. To operate on mainnet, specify a mainnet validator, such as `wss://s1.ripple.com`.
-- **`CONNECTOR_URL`**: The base URL of the connector operating this settlement engine for performing accounting and sending messages.
-  - TODO expalin that the connector runs a separate server for interaction with SE
+- **`CONNECTOR_URL`**: URL of the connector's server dedicated to this settlement engine.
   - Default: `http://localhost:7771`
 - **`ENGINE_PORT`**: Port of the settlement engine server exposed to the connector (e.g. for triggering automated settlements).
   - Default: `3000`

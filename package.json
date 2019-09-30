@@ -1,6 +1,6 @@
 {
   "name": "ilp-settlement-xrp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Settle Interledger payments using on-ledger XRP transfers",
   "bin": {
     "ilp-settlement-xrp": "./bin/run.js"

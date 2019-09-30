@@ -1,38 +1,38 @@
-XRP On Ledger Settlement engine as per the proposed [Settlement RFC](https://github.com/interledger/rfcs/pull/536).
+# XRP On-Ledger Settlement Engine
 
-Note the RFC has yet to be merged and thus the implementation could change to meet the spec at a later date. 
+> Settle Interledger payments using on-ledger XRP transfers
 
-## Build the Engine
-To build this engine, issue the following command:
+[![NPM Package](https://img.shields.io/npm/v/ilp-settlement-xrp.svg?style=flat-square&logo=npm)](https://npmjs.org/package/ilp-settlement-xrp)
+[![CircleCI](https://img.shields.io/circleci/project/github/interledgerjs/settlement-xrp/master.svg?style=flat-square&logo=circleci)](https://circleci.com/gh/interledgerjs/settlement-xrp/master)
+[![Codecov](https://img.shields.io/codecov/c/github/interledgerjs/settlement-xrp/master.svg?style=flat-square&logo=codecov)](https://codecov.io/gh/interledgerjs/settlement-xrp)
+[![Prettier](https://img.shields.io/badge/code_style-prettier-brightgreen.svg?style=flat-square)](https://prettier.io/)
+[![Apache 2.0 License](https://img.shields.io/github/license/interledgerjs/settlement-xrp.svg?style=flat-square)](https://github.com/interledgerjs/settlement-xrp/blob/master/LICENSE)
+
+## Install
 
 ```bash
-npm install && npm run build && npm link
+npm i -g ilp-settlement-xrp
+```
+
+## Run
+
+```bash
+DEBUG=settlement* ilp-settlement-xrp
 ```
 
 ## Configuration
-This settlement engine provides for the following configurable settings:
 
-* **LEDGER_ADDRESS**: The XRP Ledger address that this settlement engine will listen to for incoming payments (i.e., payments made by a counterparty to the Connector account this engine is operating on behalf of). Generate a test address and secret using the [XRPL Test Faucet](https://xrpl.org/xrp-test-net-faucet.html). DEFAULT: `rGCUgMH4omQV1PUuYFoMAnA7esWFhE7ZEV`
+Optionally configure the settlement engine using these environment variables:
 
-* **LEDGER_SECRET**: The XRP Ledger secret that this settlement engine will listen to for incoming payments (i.e., payments made by a counterparty to the Connector account this engine is operating on behalf of). DEFAULT: `sahVoeg97nuitefnzL9GHjp2Z6kpj`
-
-* **CONNECTOR_URL**: The base HTTP URL that this settlement engine can make API calls to in order to communicate with the Connector account this engine is operating on behalf of. DEFAULT: `http://localhost:7771`
-
-* **ENGINE_PORT**: The port that this settlement engine should bind to. DEFAULT: `3000`
-
-* **REDIS_HOST**: The host that this settlement engine should use when attempting to communicate with Redis. DEFAULT: `localhost`
-
-* **REDIS_PORT**: The port that this settlement engine should use when attempting to communicate with Redis. DEFAULT: `6379`
-
-## Operation
-To run this Settlement Engine, issue the following command:
-
-```bash
-LEDGER_ADDRESS=rGCUgMH4omQV1PUuYFoMAnA7esWFhE7ZEV LEDGER_SECRET=sahVoeg97nuitefnzL9GHjp2Z6kpj node ./build/run
-```
-
-### TODO
-* [ ] Add logic to persist incoming settlements and requests to settle to ensure they are executed at a later time.
-* [ ] Update README
-* [ ] Dockerize the SE
-* [ ] Add integration tests
+- **`XRP_SECRET`**: The XRP Ledger secret to send outgoing payments and corresponding to the XRP account for receiving incoming payments.
+  - By default, a new [XRP testnet account](https://xrpl.org/xrp-test-net-faucet.html) is automatically generated with 1,000 testnet XRP.
+- **`RIPPLED_URI`**: Rippled WebSocket or JSON-RPC endpoint to submit transactions and query network state.
+  - Defaults to the Ripple testnet: `wss://s.altnet.rippletest.net:51233`. To operate on mainnet, specify a mainnet validator, such as `wss://s1.ripple.com`.
+- **`CONNECTOR_URL`**: URL of the connector's server dedicated to this settlement engine.
+  - Default: `http://localhost:7771`
+- **`ENGINE_PORT`**: Port of the settlement engine server exposed to the connector (e.g. for triggering automated settlements).
+  - Default: `3000`
+- **`REDIS_URI`**: URI to communicate with Redis, typically in the format `redis://[:PASSWORD@]HOST[:PORT][/DATABASE]`.
+  - Default: `127.0.0.1:6379/1` (database index of 1 instead of 0)
+  - Note: this settlement engine **must** use a unique Redis database index (or dedicated Redis instance) for security to prevent conflicting with the connector.
+- **`DEBUG`**: Pattern for printing debug logs. To view logs, `settlement*` is recommended.

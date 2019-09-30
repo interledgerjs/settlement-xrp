@@ -1,42 +1,29 @@
-#!/usr/bin/env node
+import { startServer, connectRedis } from 'ilp-settlement-core'
+import { createEngine } from '.'
 
-import { XrpSettlementEngine, XrpSettlementEngineConfig } from '.'
-import * as Redis from 'ioredis'
+async function run() {
+  const engine = createEngine({
+    xrpSecret: process.env.XRP_SECRET,
+    rippledUri: process.env.RIPPLED_URI
+  })
 
-const LEDGER_ADDRESS =
-  process.env.LEDGER_ADDRESS || 'rGCUgMH4omQV1PUuYFoMAnA7esWFhE7ZEV'
-const LEDGER_SECRET =
-  process.env.LEDGER_SECRET || 'sahVoeg97nuitefnzL9GHjp2Z6kpj'
-const LEDGER_SCALE = 6
-const CONNECTOR_URL = process.env.CONNECTOR_URL || 'http://localhost:7771' // where the connector settlement api is NOTE, NOT THE ACCOUNTS API OR THE BTP API
-const ENGINE_PORT = process.env.ENGINE_PORT || 3000 // Where to listen for connections on
+  const store = await connectRedis({
+    uri: process.env.REDIS_URI,
+    db: 1 // URI will override this
+  })
 
-const REDIS_URI = process.env.REDIS_URI
-const REDIS_HOST = process.env.REDIS_HOST || 'localhost'
-const REDIS_PORT = process.env.REDIS_PORT || 6379 // Where redis is hosted at
+  const { shutdown } = await startServer(engine, store, {
+    connectorUrl: process.env.CONNECTOR_URL,
+    port: process.env.ENGINE_PORT
+  })
 
-const redisOptions = REDIS_URI ? REDIS_URI : { host: REDIS_HOST, port: REDIS_PORT }
+  process.on('SIGINT', async () => {
+    await shutdown()
 
-// @ts-ignore as redis needs type definition update
-const redisClient = new Redis(redisOptions)
-
-const config: XrpSettlementEngineConfig = {
-  address: LEDGER_ADDRESS,
-  secret: LEDGER_SECRET,
-  assetScale: LEDGER_SCALE,
-  /** Redis Instance */
-  redis: redisClient,
-  /** Port the connector runs http api on */
-  connectorUrl: CONNECTOR_URL,
-  port: +ENGINE_PORT
+    if (store.disconnect) {
+      await store.disconnect()
+    }
+  })
 }
 
-const engine = new XrpSettlementEngine(config)
-engine
-  .start()
-  .then(() => {
-    console.log(
-      'Listening for incoming XRP payments and polling Redis for accounts that need to be settled'
-    )
-  })
-  .catch(err => console.error(err))
+run().catch(err => console.error(err))

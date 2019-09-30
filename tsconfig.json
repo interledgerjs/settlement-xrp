@@ -1,23 +1,16 @@
 {
   "compilerOptions": {
+    "baseUrl": "src",
+    "rootDir": "src",
+    "outDir": "dist",
     "target": "esnext",
     "module": "commonjs",
-    "declaration": true,
-    "noImplicitAny": true,
-    "removeComments": true,
     "moduleResolution": "node",
-    "skipLibCheck": true,
     "sourceMap": true,
-    "inlineSources": true,
-    "strictNullChecks": true,
-    "suppressImplicitAnyIndexErrors": true,
-    "outDir": "./build",
-    "rootDir": "./src"
+    "declaration": true,
+    "removeComments": true,
+    "strict": true /* Enable all strict type-checking options. */,
+    "esModuleInterop": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "**/*.spec.ts",
-  ]
+  "include": ["src/**/*"]
 }

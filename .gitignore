@@ -2,7 +2,7 @@
 node_modules
 coverage
 .nyc_output
-build
+dist
 .DS_Store
 .rdb
 /.idea

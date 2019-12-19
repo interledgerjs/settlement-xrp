@@ -4,7 +4,8 @@ import {
   XrpSettlementEngine,
   isPaymentDetails,
   generateTestnetAccount,
-  secretToAddress
+  secretToAddress,
+  sleep
 } from '.'
 
 test.concurrent(
@@ -35,7 +36,7 @@ test.concurrent(
 
     while (true) {
       if (contextB.creditSettlement.mock.calls.length < 1) {
-        await new Promise(r => setTimeout(r, 100))
+        await sleep(100)
         continue
       }
 
@@ -53,65 +54,72 @@ test.concurrent(
   20000
 )
 
-test.concurrent('Generates new payment details for each settlement request', async () => {
-  let engineA: XrpSettlementEngine
-  let engineB: XrpSettlementEngine
+test.concurrent(
+  'Generates new payment details for each settlement request',
+  async () => {
+    let engineA: XrpSettlementEngine
+    let engineB: XrpSettlementEngine
 
-  // Generate a new pair of credentials
-  const [secretA, secretB] = await Promise.all([generateTestnetAccount(), generateTestnetAccount()])
-  const addressB = secretToAddress(secretB)
+    // Generate a new pair of credentials
+    const [secretA, secretB] = await Promise.all([
+      generateTestnetAccount(),
+      generateTestnetAccount()
+    ])
+    const addressB = secretToAddress(secretB)
 
-  const contextA = {
-    creditSettlement: jest.fn(),
-    trySettlement: jest.fn(),
-    sendMessage: jest.fn((accountId, message) => engineB.handleMessage(accountId, message))
-  }
-  const contextB = {
-    creditSettlement: jest.fn(),
-    trySettlement: jest.fn(),
-    sendMessage: jest.fn()
-  }
+    const contextA = {
+      creditSettlement: jest.fn(),
+      trySettlement: jest.fn(),
+      sendMessage: jest.fn((accountId, message) => engineB.handleMessage(accountId, message))
+    }
+    const contextB = {
+      creditSettlement: jest.fn(),
+      trySettlement: jest.fn(),
+      sendMessage: jest.fn()
+    }
 
-  engineA = await createEngine({ xrpSecret: secretA })(contextA)
-  engineB = await createEngine({ xrpSecret: secretB })(contextB)
+    engineA = await createEngine({ xrpSecret: secretA })(contextA)
+    engineB = await createEngine({ xrpSecret: secretB })(contextB)
 
-  const accountId = 'bob'
+    const accountId = 'bob'
 
-  // Ensure each settlement request uses new payment details
-  await engineA.settle(accountId, new BigNumber(0.100037))
-  expect(contextA.sendMessage.mock.calls.length).toBe(1)
-  expect(contextA.sendMessage.mock.calls[0][0]).toBe(accountId)
-  expect(contextA.sendMessage.mock.calls[0][1]).toStrictEqual({
-    type: 'paymentDetails'
-  })
+    // Ensure each settlement request uses new payment details
+    await engineA.settle(accountId, new BigNumber(0.100037))
+    expect(contextA.sendMessage.mock.calls.length).toBe(1)
+    expect(contextA.sendMessage.mock.calls[0][0]).toBe(accountId)
+    expect(contextA.sendMessage.mock.calls[0][1]).toStrictEqual({
+      type: 'paymentDetails'
+    })
 
-  await engineA.settle(accountId, new BigNumber(2))
-  expect(contextA.sendMessage.mock.calls.length).toBe(2)
-  expect(contextA.sendMessage.mock.calls[1][0]).toBe(accountId)
-  expect(contextA.sendMessage.mock.calls[1][1]).toStrictEqual({
-    type: 'paymentDetails'
-  })
+    await engineA.settle(accountId, new BigNumber(2))
+    expect(contextA.sendMessage.mock.calls.length).toBe(2)
+    expect(contextA.sendMessage.mock.calls[1][0]).toBe(accountId)
+    expect(contextA.sendMessage.mock.calls[1][1]).toStrictEqual({
+      type: 'paymentDetails'
+    })
 
-  expect(contextA.sendMessage.mock.results.length).toBe(2)
-  expect(contextA.sendMessage.mock.results[0].type).toBe('return')
-  expect(contextA.sendMessage.mock.results[1].type).toBe('return')
+    expect(contextA.sendMessage.mock.results.length).toBe(2)
+    expect(contextA.sendMessage.mock.results[0].type).toBe('return')
+    expect(contextA.sendMessage.mock.results[1].type).toBe('return')
 
-  const paymentsDetails1 = await contextA.sendMessage.mock.results[0].value
-  const paymentsDetails2 = await contextA.sendMessage.mock.results[1].value
+    const paymentsDetails1 = await contextA.sendMessage.mock.results[0].value
+    const paymentsDetails2 = await contextA.sendMessage.mock.results[1].value
 
-  // Ensure the returned payment details are the correct schema
-  expect(isPaymentDetails(paymentsDetails1)).toBe(true)
-  expect(isPaymentDetails(paymentsDetails2)).toBe(true)
+    // Ensure the returned payment details are the correct schema
+    expect(isPaymentDetails(paymentsDetails1)).toBe(true)
+    expect(isPaymentDetails(paymentsDetails2)).toBe(true)
 
-  // Ensure a new destination tag was generated for the 2nd request
-  expect(paymentsDetails1.destinationTag).not.toBe(paymentsDetails2.destinationTag)
+    // Ensure a new destination tag was generated for the 2nd request
+    expect(paymentsDetails1.destinationTag).not.toBe(paymentsDetails2.destinationTag)
 
-  // Ensure the same, correct XRP address was returned for each request
-  expect(paymentsDetails1.xrpAddress).toBe(addressB)
-  expect(paymentsDetails2.xrpAddress).toBe(addressB)
+    // Ensure the same, correct XRP address was returned for each request
+    expect(paymentsDetails1.xrpAddress).toBe(addressB)
+    expect(paymentsDetails2.xrpAddress).toBe(addressB)
 
-  await Promise.all([engineA.disconnect(), engineB.disconnect()])
-})
+    await Promise.all([engineA.disconnect(), engineB.disconnect()])
+  },
+  20000
+)
 
 test.concurrent(
   'Settlement fails if payment details are invalid',
@@ -184,6 +192,24 @@ test.concurrent(
   },
   20000
 )
+
+test('#engine.settle -> Fails fast if amount rounds down to 0', async () => {
+  const context = {
+    creditSettlement: jest.fn(),
+    trySettlement: jest.fn(),
+    sendMessage: jest.fn()
+  }
+
+  const engine = await createEngine()(context)
+
+  await expect(engine.settle('alice', new BigNumber(0.00000001))).resolves.toStrictEqual(
+    new BigNumber(0)
+  )
+
+  await engine.disconnect()
+
+  // TODO Add assertion that no settlement was triggered?
+}, 20000)
 
 test.todo('Incoming payment tags are purged after 5 minutes')
 

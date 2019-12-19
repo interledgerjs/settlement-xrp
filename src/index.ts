@@ -2,9 +2,10 @@ import axios, { AxiosResponse } from 'axios'
 import BigNumber from 'bignumber.js'
 import { randomBytes } from 'crypto'
 import debug from 'debug'
+import { AccountServices, SettlementEngine } from 'ilp-settlement-core'
 import { deriveAddress, deriveKeypair } from 'ripple-keypairs'
 import { RippleAPI } from 'ripple-lib'
-import { SettlementEngine, AccountServices } from 'ilp-settlement-core'
+import { Prepare } from 'ripple-lib/dist/npm/transaction/types'
 
 const log = debug('settlement-xrp')
 
@@ -28,8 +29,19 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
   sendMessage,
   creditSettlement
 }) => {
+  /** XRP secret for sending and signing outgoing payments */
   const xrpSecret = opts.xrpSecret || (await generateTestnetAccount())
-  const xrpAddress = secretToAddress(xrpSecret)
+
+  /** XRP address to tell peer to send payments to */
+  let xrpAddress: string
+  try {
+    xrpAddress = secretToAddress(xrpSecret)
+  } catch (err) {
+    throw new Error('Invalid XRP secret')
+  }
+
+  /** Lock if a transaction is currently being submitted */
+  let pendingTransaction = false
 
   const rippleClient: RippleAPI =
     opts.rippleClient ||
@@ -37,8 +49,11 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
       server: opts.rippledUri || TESTNET_RIPPLED_URI
     })
 
-  const incomingPaymentTags = new Map<number, string>() // destinationTag -> accountId
-  const pendingTimers = new Set<NodeJS.Timeout>() // Set of timeout IDs to cleanup when exiting
+  /** Mapping of destinationTag -> accountId to correlate incoming payments */
+  const incomingPaymentTags = new Map<number, string>()
+
+  /** Set of timeout IDs to cleanup when exiting */
+  const pendingTimers = new Set<NodeJS.Timeout>()
 
   const self: XrpSettlementEngine = {
     async handleMessage(accountId, message) {
@@ -64,7 +79,13 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
 
     async settle(accountId, queuedAmount) {
       const amount = queuedAmount.decimalPlaces(6, BigNumber.ROUND_DOWN) // Limit precision to drops (remainder will be refunded)
-      log(`Starting settlement: account=${accountId} xrp=${amount}`)
+      if (amount.isZero()) {
+        // Even though settlement-core checks against this, if connector scale > 6, it could still round down to 0
+        return new BigNumber(0)
+      }
+
+      let details = `account=${accountId} xrp=${amount}`
+      log(`Starting settlement: ${details}`)
 
       const paymentDetails = await sendMessage(accountId, {
         type: 'paymentDetails'
@@ -72,17 +93,16 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
         .then(response =>
           isPaymentDetails(response)
             ? response
-            : log(`Failed to settle: Received invalid payment details: account=${accountId}`)
+            : log(`Failed to settle: Received invalid payment details: ${details}`)
         )
-        .catch(err =>
-          log(`Failed to settle: Error fetching payment details: account=${accountId}`, err)
-        )
+        .catch(err => log(`Failed to settle: Error fetching payment details: ${details}`, err))
       if (!paymentDetails) {
         return new BigNumber(0)
       }
 
-      const signedTransaction = await rippleClient
-        .preparePayment(xrpAddress, {
+      let transaction: Prepare
+      try {
+        transaction = await rippleClient.preparePayment(xrpAddress, {
           source: {
             address: xrpAddress,
             amount: {
@@ -99,32 +119,43 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
             }
           }
         })
-        .then(payment => rippleClient.sign(payment.txJSON, xrpSecret).signedTransaction)
-        .catch(err =>
-          log(`Error creating transaction to settle: account=${accountId} xrp=${amount}`, err)
-        )
-      if (!signedTransaction) {
+      } catch (err) {
+        log(`Failed to settle: Error preparing XRP payment: ${details}`, err)
         return new BigNumber(0)
       }
 
-      /**
-       * TODO Should this check if the transaction succeeded/for final outcome?
-       *
-       * Per https://developers.ripple.com/get-started-with-rippleapi-for-javascript.html:
-       * "The tentative result should be ignored. Transactions that succeed here can ultimately fail,
-       *  and transactions that fail here can ultimately succeed."
-       */
-      await rippleClient
-        .submit(signedTransaction)
-        .then(({ resultCode }) =>
-          resultCode === 'tesSUCCESS'
-            ? log(`Successfully submitted payment: account=${accountId} xrp=${amount}`)
-            : log(
-                `[Tentative] Payment failed: account=${accountId} xrp=${amount} code=${resultCode}`
-              )
-        )
-        .catch(err => log(`Failed to submit payment: account=${accountId} xrp=${amount}`, err))
-      return amount
+      // Ensure only a single settlement occurs at once
+      if (pendingTransaction) {
+        log(`Failed to settle: transaction already in progress: ${details}`)
+        return new BigNumber(0)
+      }
+
+      // Apply lock for pending transaction
+      pendingTransaction = true
+
+      try {
+        /*
+         * Per https://github.com/ripple/ripple-lib/blob/develop/docs/index.md#transaction-instructions:
+         * By omitting maxLedgerVersion instruction, default is current ledger plus 3
+         */
+        const { signedTransaction, id } = rippleClient.sign(transaction.txJSON, xrpSecret)
+
+        /**
+         * Per https://developers.ripple.com/get-started-with-rippleapi-for-javascript.html:
+         *
+         * "The tentative result should be ignored. Transactions that succeed here can ultimately fail,
+         * and transactions that fail here can ultimately succeed."
+         */
+        await rippleClient.submit(signedTransaction)
+
+        const didApplyTx = checkForTx(rippleClient, id)
+        return didApplyTx ? amount : new BigNumber(0)
+      } catch (err) {
+        log(`Failed to settle: Transaction error: ${details}`, err)
+        return amount // For safety, assume transaction was applied (return full amount was settled)
+      } finally {
+        pendingTransaction = false
+      }
     },
 
     handleTransaction(tx) {
@@ -149,6 +180,8 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
         return
       }
 
+      // TODO What if amount is NaN? (Will settlement-core catch that?)
+
       const accountId = incomingPaymentTags.get(tx.transaction.DestinationTag)
       if (!accountId) {
         return
@@ -161,7 +194,6 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
 
     async disconnect() {
       pendingTimers.forEach(timer => clearTimeout(timer))
-
       await rippleClient.disconnect()
     }
   }
@@ -176,7 +208,7 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
   return self
 }
 
-interface PaymentDetails {
+export interface PaymentDetails {
   xrpAddress: string
   destinationTag: number
 }
@@ -197,9 +229,11 @@ interface RippleTestnetResponse {
   }
 }
 
+/** Convert an XRP secret to an XRP address */
 export const secretToAddress = (xrpSecret: string) =>
   deriveAddress(deriveKeypair(xrpSecret).publicKey)
 
+/** Generate a secret for a new, prefunded XRP account */
 export const generateTestnetAccount = async () =>
   axios
     .post('https://faucet.altnet.rippletest.net/accounts')
@@ -208,11 +242,57 @@ export const generateTestnetAccount = async () =>
         const { secret, address } = data.account
 
         // Wait for it to be included in a block
-        await new Promise(r => setTimeout(r, 5000))
+        await sleep(5000)
+
+        // TODO Instead of sleeping, poll until the account exists?
 
         log(`Generated new XRP testnet account: address=${address} secret=${secret}`)
         return secret
       }
 
       throw new Error('Failed to generate new XRP testnet account')
+    })
+
+/** Wait and resolve after the given number of milliseconds */
+export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/**
+ * Was the given transaction successfully included in a validated ledger?
+ *
+ * @param api Connected instance of ripple-lib
+ * @param txHash Transaction hash
+ * @param attempts Cumulative number of attempts this transaction state has been fetched
+ */
+const checkForTx = (api: RippleAPI, txHash: string, attempts = 0): Promise<boolean> =>
+  api
+    .getTransaction(txHash)
+    .then(({ outcome }) => {
+      if (outcome.result === 'tesSUCCESS') {
+        log(`Transaction successfully included in validated ledger: txHash=${txHash}`)
+        return true
+      } else {
+        log(`Transaction failed: txHash=${txHash} outcome=${outcome.result}`)
+        return false
+      }
+    })
+    /**
+     * Ripple-lib throws if the tx isn't from a validated ledger:
+     * https://github.com/ripple/ripple-lib/blob/181cfd69de74454f1024b77dffdeb1363cbc07c1/src/ledger/transaction.ts#L86
+     */
+    .catch(async (err: Error) => {
+      // Fails after at least 4 seconds (plus time for each API call)
+      if (attempts > 20) {
+        log(`Failed to fetch transaction result, despite several attempts: txHash=${txHash}`, err)
+        return true // Must assume the transaction was included, since we can't verify the result
+      }
+
+      const shouldRetry =
+        err instanceof api.errors.MissingLedgerHistoryError ||
+        err instanceof api.errors.NotFoundError
+      if (shouldRetry) {
+        await sleep(200)
+        return checkForTx(api, txHash, attempts + 1)
+      }
+
+      return true // Non-retryable error (but not related to transaction inclusion)
     })

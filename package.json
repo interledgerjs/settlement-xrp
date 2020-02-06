@@ -37,7 +37,7 @@
     "bignumber.js": "^9.0.0",
     "debug": "^4.1.1",
     "ilp-settlement-core": "^0.1.1",
-    "ripple-lib": "^1.3.3"
+    "ripple-lib": "^1.6.3"
   },
   "devDependencies": {
     "@types/debug": "^4.1.3",

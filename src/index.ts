@@ -49,6 +49,11 @@ export const createEngine = (opts: XrpEngineOpts = {}): ConnectXrpSettlementEngi
       server: opts.rippledUri || TESTNET_RIPPLED_URI
     })
 
+  // @ts-ignore
+  // Connection issues require increasing timeout, but cannot pass as config option:
+  // https://github.com/ripple/ripple-lib/issues/1196
+  rippleClient.connection._config.connectionTimeout = 10000
+
   /** Mapping of destinationTag -> accountId to correlate incoming payments */
   const incomingPaymentTags = new Map<number, string>()
 

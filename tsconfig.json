@@ -12,5 +12,6 @@
     "strict": true /* Enable all strict type-checking options. */,
     "esModuleInterop": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"] /* TODO remove this! */
 }

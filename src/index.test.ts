@@ -13,9 +13,12 @@ test.concurrent(
   async () => {
     // Setup the context so they each send messages to each other
     const contextA = {
+      redis: jest.fn(),
+      prepareSettlement: jest.fn().mockResolvedValue([new BigNumber(378.1234567), jest.fn()]),
       creditSettlement: jest.fn(),
-      trySettlement: jest.fn(),
-      sendMessage: (accountId: string, message: any) => engineB.handleMessage(accountId, message)
+      refundSettlement: jest.fn(),
+      sendMessage: (accountId: string, message: any): Promise<any> =>
+        engineB.handleMessage(accountId, message)
     }
     const contextB = {
       creditSettlement: jest.fn(),

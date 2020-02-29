@@ -36,7 +36,8 @@
     "axios": "^0.19.2",
     "bignumber.js": "^9.0.0",
     "debug": "^4.1.1",
-    "ilp-settlement-core": "^0.1.1",
+    "ilp-settlement-core": "file:ilp-settlement-core-0.1.1.tgz",
+    "ripple-keypairs": "^1.0.0",
     "ripple-lib": "^1.6.3"
   },
   "devDependencies": {

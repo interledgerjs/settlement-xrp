@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/interledgerjs/settlement-xrp#readme",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "bignumber.js": "^9.0.0",
     "debug": "^4.1.1",
     "ilp-settlement-core": "^0.1.1",
